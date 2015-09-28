@@ -155,7 +155,7 @@ sub convert {
     if (!$response->{result}) {
       $fail_archive = Archive::Zip->new();
       my $log_text = $response->{log} || "Fatal:unknown:empty_output\nStatus:conversion:3";
-      $fail_archive->addString($log_text,$log_filepath);
+      $fail_archive->addString("$log_text",$log_filepath);
       exit ($fail_archive->writeToFileNamed($destination) == AZ_OK); }
     else {
       exit ($response->{result}->writeToFileNamed($destination) == AZ_OK); } }
