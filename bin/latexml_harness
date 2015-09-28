@@ -31,8 +31,7 @@ BEGIN {
 use Unix::Processors;
 my $check_interval = 10;
 
-my @servers = @ARGV;
-print STDERR "SERVERS: ",join(@servers,'--');
+my $server = shift || '212.201.49.37';
 
 # Set up global state
 my $Cache={ workers=> {} };
@@ -71,7 +70,6 @@ while (1) { # Every minute, check:
 
 sub spawn_workers {
   my ($needed) = @_;
-  return unless (@servers);
   my @services = keys %$needed;
   my $pid = 0;
   while (@services) {
@@ -80,7 +78,7 @@ sub spawn_workers {
       # Fork a job for each missing worker
       $pid = fork();
       if ($pid == 0) {
-        exec(catfile($RealBin_safe,"latexml_worker"),@servers);
+        exec(catfile($RealBin_safe,"latexml_worker"),$server);
       } else {
         push @{$Cache->{workers}->{$s}}, $pid;
       }
