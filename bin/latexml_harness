@@ -1,0 +1,161 @@
+#!/usr/bin/env perl
+# /=====================================================================\ #
+# | CorTeX Peripherals for LaTeXML                                      | #
+# | Harness - maintains an active collection of LaTeXML workers         | #
+# |=====================================================================| #
+# | Part of the LaMaPUn project: https://trac.kwarc.info/lamapun/       | #
+# |  Research software, produced as part of work done by:               | #
+# |  the KWARC group at Jacobs University                               | #
+# | Copyright (c) 2015                                                  | #
+# | Released under the MIT License                                      | #
+# |---------------------------------------------------------------------| #
+# | Deyan Ginev <d.ginev@jacobs-university.de>                  #_#     | #
+# | http://kwarc.info/people/dginev                            (o o)    | #
+# \=========================================================ooo==U==ooo=/ #
+use strict;
+use warnings;
+
+use Encode;
+use FindBin;
+use File::Basename;
+use File::Spec::Functions qw(catdir catfile);
+
+my $RealBin_safe;
+BEGIN {
+  $FindBin::RealBin =~ /^([^\0]+)\z/; # Valid Unix path TODO: Windows, revisit regexp
+  $RealBin_safe = $1;
+  die 'Fatal:IO:tainted RealBin was tainted! Failing...'
+   unless ($RealBin_safe && (-e catfile($RealBin_safe,'latexml_harness')));
+}
+
+use Unix::Processors;
+my $check_interval = 10;
+
+my @servers = @ARGV;
+print STDERR "SERVERS: ",join(@servers,'--');
+
+# Set up global state
+my $Cache={ workers=> {} };
+$Cache->{processor_multiplier} = Unix::Processors->new->max_online;
+
+# Set up child control
+$SIG{'INT'} = \&stop_all; # Interrupt handler
+$SIG{'HUP'} = \&stop_all; # Apache Hangup handler
+$SIG{'KILL'} = \&stop_all; # Just good-old KILL handler
+$SIG{'TERM'} = \&stop_all; # TERM handler
+$SIG{'CHLD'} = 'IGNORE';
+
+sub stop_all {
+  stop_workers();
+  exit 0; }
+sub stop_workers {
+  my $workers = $Cache->{workers};
+  foreach my $service (keys %$workers) {
+    stop_child($_) foreach @{$workers->{$service}};
+  }
+  $Cache->{workers} = {}; }
+sub stop_child {
+  my ($pid) = @_;
+  # Send a SIGTERM to the child job
+  kill 15, $pid;
+  waitpid($pid,0); }
+
+# Start cron loop managing the client and worker children
+while (1) { # Every minute, check:
+  # Reinit, When servers or backends change
+  my $needed = workers_needed();
+  # Start workers, if needed
+  spawn_workers($needed) if (%$needed);
+  # Check again in a minute...
+  sleep $check_interval; }
+
+sub spawn_workers {
+  my ($needed) = @_;
+  return unless (@servers);
+  my @services = keys %$needed;
+  my $pid = 0;
+  while (@services) {
+    my $s = shift @services;
+    for my $num(1..$needed->{$s}) {
+      # Fork a job for each missing worker
+      $pid = fork();
+      if ($pid == 0) {
+        exec(catfile($RealBin_safe,"latexml_worker"),@servers);
+      } else {
+        push @{$Cache->{workers}->{$s}}, $pid;
+      }
+    }
+  }}
+
+sub workers_needed {
+  my $current_services = available_services();
+  my $needed = {};
+  my $cached_services = $Cache->{available_services};
+  my $cached_worker_pids = $Cache->{workers};
+  # workers = 2 x ( # cpus ) x (# local services)
+  my $processes_per_worker = $Cache->{processor_multiplier};
+  foreach my $service(@$current_services) {
+    unless (grep {$_ eq $service} @$cached_services) {
+      # New services get the max count of workers to boot
+      $needed->{$service} = $processes_per_worker ; }}
+
+  foreach my $service(keys %$cached_worker_pids) {
+    my $missing_processes = 0; 
+    my $pid_list = $cached_worker_pids->{$service};
+    my $verified_list = [];
+    foreach my $pid (@$pid_list) {
+      if (kill 0, $pid) {
+        push @$verified_list, $pid; }
+      else {
+        $missing_processes++; }}
+    $cached_worker_pids->{$service} = $verified_list;
+    $needed->{$service} = $missing_processes if $missing_processes;
+  }
+
+  # Update available services
+  $Cache->{available_services} = $current_services;
+
+  return $needed; }
+
+sub available_services { return ['tex_to_html']; }
+
+__END__
+
+=pod 
+
+=head1 NAME
+
+C<cortex-gears> - Scheduler of the CorTeX framework
+
+=head1 SYNOPSIS
+
+TODO
+
+=head1 DESCRIPTION
+
+TODO
+
+=head1 Gearman Installation
+
+Under Debian-based systems:
+ sudo apt-get install
+   gearman
+   gearman-job-server
+   gearman-tools
+   gearman-server
+   mod-gearman-tools
+   libgearman-client-async-perl
+   libmodule-install-xsutil-perl
+   libgearman-dev
+
+=head1 AUTHOR
+
+Deyan Ginev <d.ginev@jacobs-university.de>
+
+=head1 COPYRIGHT
+
+ Research software, produced as part of work done by 
+ the KWARC group at Jacobs University Bremen.
+ Released under the GNU Public License
+
+=cut
