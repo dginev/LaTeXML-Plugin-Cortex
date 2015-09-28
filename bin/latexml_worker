@@ -42,7 +42,7 @@ BEGIN {
 my $service_name = 'tex_to_html';
 my $message_size = 100000;
 my $work_counter = 0;
-my $identity = map { (q(a)..q(z))[rand(26)] } 1 .. 10;
+my $identity = join('',map { (q(a)..q(z))[rand(26)] } 1 .. 20);
 my $timeout_limit = 600; # If worker isn't done in 10 minutes - timeout
 
 # Set up the cortex endpoints
@@ -66,7 +66,7 @@ zmq_connect($sink, $sink_address);
 # Work in perpetuity
 my $taskid_msg = zmq_msg_init();
 my $recv_msg = zmq_msg_init();
-print STDERR "-- Worker started, waiting for jobs.\n";
+print STDERR "-- Worker $identity started, waiting for jobs.\n";
 while (1) {
   restart_worker('job limit') if $work_counter > 100; # Respawn every 100 jobs, just to stay safe.
   # First, request a task from the ventilator  
