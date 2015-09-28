@@ -24,6 +24,7 @@ WriteMakefile(
     'File::Temp' => 0,
     'ZMQ::LibZMQ3' => '1.19',
     'LaTeXML'=>'0.8.1',
+    'Archive::Zip'=>0
   },
   EXE_FILES => ['bin/latexml_worker'],
   (eval { ExtUtils::MakeMaker->VERSION(6.46) } ? (META_MERGE => {
