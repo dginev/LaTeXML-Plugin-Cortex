@@ -8,77 +8,191 @@
 # Created and provided by Deyan Ginev
 #   released in the Public Domain
 
-use ZMQ::LibZMQ3;
-use ZMQ::Constants qw(ZMQ_DEALER ZMQ_PUSH ZMQ_SNDMORE ZMQ_RCVMORE);
-use File::Temp qw(tempfile);
+### 
+# Explanation: The goal here is to stay "safe" in the following aspects:
+# - RAM allocation for CorTeX I/O - some jobs in arXiv are >1GB. Hence we stream both input and output into RAMdisk tempfiles.
+# - RAM allocation for LaTeXML - Perl's garbage collector dangerously takes its time with certain structures, deallocating only at
+#     process termination. To ensure deallocation, while also benefiting from the daemonization speedups, we do a Perl fork() for each latexml job.
+# - Rogue infinite loops / busy malfunctions: arXiv has certain image files that send "convert" and "gs" for a loop, turning latexml unresponsive.
+#     To counteract these we use: 
+#     1) a separate process to observe the timeout (as even alarm() can't fire in some blocked cases!)
+#     2) The 9 kill signal (only fire seemed to work)
+#     3) The occasional worker restart, every 100 jobs or so.
+# We pay a price here - fork() is an expensive op, however that is worth the price in order to ensure memory safety.
 
-# Set up basic parameters for this service
-my $service_name = "tex_to_html";
+use ZMQ::LibZMQ3;
+use ZMQ::Constants qw(ZMQ_DEALER ZMQ_PUSH ZMQ_SNDMORE ZMQ_RCVMORE ZMQ_IDENTITY);
+use LaTeXML;
+use LaTeXML::Common::Config;
+use File::Temp qw(tempfile);
+use Archive::Zip qw(:CONSTANTS :ERROR_CODES);
+
+# Obtain the path of this executable, for easy restart.
+use FindBin;
+my $RealBin_safe;
+BEGIN {
+  $FindBin::RealBin =~ /^([^\0]+)\z/; # Valid Unix path TODO: Windows, revisit regexp
+  $RealBin_safe = $1;
+  die 'Fatal:IO:tainted RealBin was tainted! Failing...'
+   unless ($RealBin_safe && (-e $RealBin_safe.'/latexml_worker')); 
+}
+
+
+# Set up basic parameters for this CorTeX service
+my $service_name = 'tex_to_html';
 my $message_size = 100000;
 my $work_counter = 0;
+my $identity = map { (q(a)..q(z))[rand(26)] } 1 .. 10;
+my $timeout_limit = 600; # If worker isn't done in 10 minutes - timeout
 
 # Set up the cortex endpoints
 my $cortex_ip = shift || '212.201.49.37';
 my $cortex_ventilator_port = shift || '5555';
 my $cortex_sink_port = shift || '5556';
+my $ventilator_address = "tcp://$cortex_ip:$cortex_ventilator_port";
+my $sink_address = "tcp://$cortex_ip:$cortex_sink_port";
 
 # Connect to a task ventilator
 my $ventilator_context = zmq_init;
 my $ventilator = zmq_socket( $ventilator_context, ZMQ_DEALER );
-zmq_bind($ventilator, "tcp://$cortex_ip:$cortex_ventilator_port");
+zmq_setsockopt($ventilator, ZMQ_IDENTITY, $identity);
+zmq_connect($ventilator, $ventilator_address);
 
 # Connect to a task sink
 my $sink_context = zmq_init;
 my $sink = zmq_socket( $sink_context, ZMQ_PUSH );
-zmq_connect($sink, "tcp://$cortex_ip:$cortex_sink_port");
+zmq_connect($sink, $sink_address);
 
 # Work in perpetuity
 my $taskid_msg = zmq_msg_init();
 my $recv_msg = zmq_msg_init();
+print STDERR "-- Worker started, waiting for jobs.\n";
 while (1) {
+  restart_worker('job limit') if $work_counter > 100; # Respawn every 100 jobs, just to stay safe.
   # First, request a task from the ventilator  
   zmq_sendmsg( $ventilator, $service_name );
   my $rv = zmq_msg_recv($taskid_msg, $ventilator, 0);
-  my $taskid = zmq_msg_data(taskid_msg);
+  my $taskid = zmq_msg_data($taskid_msg);
   
-  # Prepare a File for the input
-  my ($file, $input_filepath) = tempfile($taskid, SUFFIX => ".zip");
-  binmode($file);
+  # Prepare a File for the input: we want a temp file, on a RAM disk (/dev/shm), without auto-remove
+  my ($input_fh, $input_filepath) = tempfile($taskid."_inXXXX", SUFFIX => ".zip", TMPDIR=>1, UNLINK => 0);
+  my ($output_fh, $output_filepath) = tempfile($taskid."_outXXXX", SUFFIX => ".zip", TMPDIR=>1, UNLINK => 0);
+  close $output_fh;
+  binmode($input_fh);
   while (zmq_msg_recv($recv_msg, $ventilator, ZMQ_RCVMORE) > 0) {
-    print $file zmg_msg_data($recv_msg);
+    print $input_fh zmq_msg_data($recv_msg);
   }
-  close $file;
+  close $input_fh;
+  
+  $work_counter++;
+  print STDERR "-- CorTeX task #$taskid (worker job $work_counter) received, converting...\n";
 
-  my $is_converted = convert($input_filepath);
+  my $is_converted = convert($taskid, $input_filepath, $output_filepath);
+  print STDERR "-- Conversion complete, responding...\n";
+  # Let sink know a result is incoming
+  zmq_sendmsg( $sink, $service_name, ZMQ_SNDMORE);
+  zmq_sendmsg( $sink, $taskid, ZMQ_SNDMORE);
+  # Did the conversion succeed? Determine response based on that.
   if ($is_converted) {
-    my $converted_file = $is_converted;
-    zmq_sendmsg( $sink, $service_name, ZMQ_SNDMORE);
-    zmq_sendmsg( $sink, $taskid, ZMQ_SNDMORE);
-    open(my $converted_fh, "<", $converted_file);
-    binmode($converted_fh);
-
+    open($output_fh, "<", $output_filepath);
+    binmode($output_fh);
     # Stream converted data via zmq
     #  Read file in $message_size blocks
     my $data_buffer = '';
-    while (my $size = read($converted_fh, $data_buffer, $message_size)) {
+    while (my $size = read($output_fh, $data_buffer, $message_size)) {
       if ($size < $message_size) {
         # Last message
         zmq_send($sink, $data_buffer, $size, 0);
       } else {
         # Message part, more will follow
-        zmq_send($sink,$data_buffer,$size,SNDMORE);
+        zmq_send($sink,$data_buffer,$size, ZMQ_SNDMORE);
       }
     }
-    close $converted_fh;
+    close $output_fh;
+    # And the job is done.
+    print STDERR "-- CorTeX task #$taskid (worker job $work_counter) completed.\n";
   }
   else {
-    # If there was nothing to do, retry a minute later
-    sleep 60;
-    continue 
+    # Conversion failed, send an empty result body
+    zmq_send($sink, '', 0, 0);
+    print STDERR "-- CorTeX task #$taskid (worker job $work_counter) failed.\n"; 
   }
-
-  $work_counter++;
-  print STDERR "-- Job $work_counter completed.\n";
+  # Time to remove our temp files
+  unlink($input_filepath);
+  unlink($output_filepath);
 }
+
+sub convert {
+  my ($taskid, $source, $destination) = @_;
+  my $log_filepath = "cortex.log";
+  # Set up conversion parameters for LaTeXML
+  my $conversion_opts=LaTeXML::Common::Config->new(local=>1,whatsin=>'archive',whatsout=>'archive::zip::perl',
+    format=>'html5',mathparse=>'RecDescent',post=>1,math_formats=>['pmml','cmml'],
+    preload=>['[ids]latexml.sty'],css=>['http://latexml.mathweb.org/css/external/LaTeXML.css'],
+    defaultresources=>0,inputencoding=>'iso-8859-1',timeout=>300,
+    log=>$log_filepath);
+  $conversion_opts->check;
+  my $converter = LaTeXML->get_converter($conversion_opts);
+
+  ### SPAWN a new LaTeXML process here, we are entering unsafe territory
+  my $pid = fork();
+  die if not defined $pid; # Error-handling
+  ###
+  # 1. CHILD
+  if (not $pid) { 
+    # External timer to prevent problems in system calls
+    my $timer_pid = with_external_timer($timeout_limit);
+    # CorTeX workhorses have lowest priority, to avoid overloading the machine
+    setpriority(0, $$, 20);
+    
+    # Actual latexml conversion happens here.
+    $converter->prepare_session($conversion_opts);
+    my $response = $converter->convert($source);
+    reset_external_timer($timer_pid); # Reset external timer 
+    # This is a little silly -> the LaTeXML API does not (yet?) support direct local writing of Archives.
+    # In other words, the final Archive is contained into $response - a potentially huge variable. 
+    # In any case, let's write that variable into the needed destination:
+    if (!$response->{result}) {
+      $fail_archive = Archive::Zip->new();
+      $fail_archive->addString($log_filepath, "Fatal:unknown:empty_output\nStatus:conversion:3");
+      exit ($fail_archive->writeToFileNamed($destination) == AZ_OK); }
+    else {
+      exit ($response->{result}->writeToFileNamed($destination) == AZ_OK); } }
+  ###
+  # 2. PARENT
+  else {
+    # Simply wait for the child to terminate:
+    waitpid($pid, 0);
+  }
+}
+
+### Utilities
+# Restart support for keeping the worker operational over long inactivity periods
+sub restart_worker {
+  my ($reason) = @_;
+  print STDERR "[".localtime()."] [$$] $reason reached, restarting\n";
+  exec("$RealBin_safe/latexml_worker",@ARGV)
+    or die("Fatal:latexml_worker:restart Worker $$ autoflush Failed!"); }
+
+sub with_external_timer {
+  my ($time) = @_;
+  my $parent = $$;
+  my $pid = fork();
+  return $pid if $pid; # If parent finishes normally, it will kill $pid
+  sleep $time; # Sleep for the timeout
+
+  # Core timeout handler:
+  # If we haven't been killed, there is a system call timeout => kill the parent
+  print STDERR "[".localtime()."] [$$] Killing $parent via external timeout\n";
+  # Record the failure:
+  # $job->fail('Fatal:latexml_worker:timeout [$identity] Worker timed out after $time seconds.');
+  kill 9, -$parent; # We really need 9 here, the "gs" infinite loop from LaTeXML can't be killed in any other way
+  # And exit;
+  exit 0; }
+
+sub reset_external_timer {
+  my ($pid) = @_;
+  kill 9, $pid;
+  return; }
 
 1;
