@@ -154,7 +154,8 @@ sub convert {
     # In any case, let's write that variable into the needed destination:
     if (!$response->{result}) {
       $fail_archive = Archive::Zip->new();
-      $fail_archive->addString("Fatal:unknown:empty_output\nStatus:conversion:3",$log_filepath);
+      my $log_text = $response->{log} || "Fatal:unknown:empty_output\nStatus:conversion:3";
+      $fail_archive->addString($log_text,$log_filepath);
       exit ($fail_archive->writeToFileNamed($destination) == AZ_OK); }
     else {
       exit ($response->{result}->writeToFileNamed($destination) == AZ_OK); } }
