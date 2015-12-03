@@ -22,8 +22,6 @@
 
 use ZMQ::LibZMQ3;
 use ZMQ::Constants qw(ZMQ_DEALER ZMQ_PUSH ZMQ_SNDMORE ZMQ_RCVMORE ZMQ_IDENTITY);
-use LaTeXML;
-use LaTeXML::Common::Config;
 use File::Temp qw(tempfile);
 use Archive::Zip qw(:CONSTANTS :ERROR_CODES);
 
@@ -135,28 +133,36 @@ while (1) {
 sub convert {
   my ($taskid, $source, $destination) = @_;
   my $log_filepath = "cortex.log";
-  # Set up conversion parameters for LaTeXML
-  my $conversion_opts=LaTeXML::Common::Config->new(local=>1,whatsin=>'archive',whatsout=>'archive',
-    format=>'html5',mathparse=>'RecDescent',post=>1,math_formats=>['pmml','cmml'],
-    preload=>['[ids]latexml.sty'],css=>['http://latexml.mathweb.org/css/external/LaTeXML.css'],
-    defaultresources=>0,inputencoding=>'iso-8859-1',timeout=>300,
-    log=>$log_filepath);
-  $conversion_opts->check;
-  my $converter = LaTeXML->get_converter($conversion_opts);
-
   ### SPAWN a new LaTeXML process here, we are entering unsafe territory
   my $pid = fork();
   die if not defined $pid; # Error-handling
   ###
+  # 1. PARENT
+  if ($pid) {
+    # Simply wait for the child to terminate and return:
+    return waitpid($pid, 0); 
+  }
+  ###
   # 1. CHILD
-  if (not $pid) { 
+  else {
     # Group leader, so that we can timeout the entire process group
     setpgrp(0, 0);
     # External timer to prevent problems in system calls
     my $timer_pid = with_external_timer($timeout_limit);
     # CorTeX workhorses have lowest priority, to avoid overloading the machine
     setpriority(0, $$, 20);
-    
+
+    # Load as late as possible, to optimize runtime
+    use LaTeXML;
+    use LaTeXML::Common::Config;
+    # Set up conversion parameters for LaTeXML
+    my $conversion_opts=LaTeXML::Common::Config->new(local=>1,whatsin=>'archive',whatsout=>'archive',
+      format=>'html5',mathparse=>'RecDescent',post=>1,math_formats=>['pmml','cmml'],
+      preload=>['[ids]latexml.sty'],css=>['http://latexml.mathweb.org/css/external/LaTeXML.css'],
+      defaultresources=>0,inputencoding=>'iso-8859-1',timeout=>300,
+      log=>$log_filepath);
+    $conversion_opts->check;
+    my $converter = LaTeXML->get_converter($conversion_opts);
     # Actual latexml conversion happens here.
     $converter->prepare_session($conversion_opts);
     my $response = $converter->convert($source);
@@ -176,12 +182,7 @@ sub convert {
       close $output_handle;
       exit $print_ok; } 
     # This convert process is a one-time job, ending here.
-    exit 0; }
-  ###
-  # 2. PARENT
-  else {
-    # Simply wait for the child to terminate:
-    waitpid($pid, 0);
+    exit 0; 
   }
 }
 
