@@ -116,6 +116,7 @@ while (1) {
         # Message part, more will follow
         zmq_send($sink,$data_buffer,$size, ZMQ_SNDMORE);
       }
+      $data_buffer = '';
     }
     close $output_fh;
     # And the job is done.
@@ -149,6 +150,8 @@ sub convert {
   ###
   # 1. CHILD
   if (not $pid) { 
+    # Group leader, so that we can timeout the entire process group
+    setpgrp(0, 0);
     # External timer to prevent problems in system calls
     my $timer_pid = with_external_timer($timeout_limit);
     # CorTeX workhorses have lowest priority, to avoid overloading the machine
@@ -171,7 +174,9 @@ sub convert {
       binmode($output_handle);
       my $print_ok = print $output_handle $response->{result};
       close $output_handle;
-      exit $print_ok; } }
+      exit $print_ok; } 
+    # This convert process is a one-time job, ending here.
+    exit 0; }
   ###
   # 2. PARENT
   else {
@@ -200,13 +205,14 @@ sub with_external_timer {
   print STDERR "[".localtime()."] [$$] Killing $parent via external timeout\n";
   # Record the failure:
   # $job->fail('Fatal:latexml_worker:timeout [$identity] Worker timed out after $time seconds.');
-  kill 9, -$parent; # We really need 9 here, the "gs" infinite loop from LaTeXML can't be killed in any other way
+  # We really need KILL here, the "gs" infinite loop from LaTeXML can't be killed in any other way
+  kill '-KILL', getpgrp($$);
   # And exit;
   exit 0; }
 
 sub reset_external_timer {
   my ($pid) = @_;
-  kill 9, $pid;
+  kill 'KILL', $pid;
   return; }
 
 1;
