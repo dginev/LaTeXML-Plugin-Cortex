@@ -8,7 +8,8 @@ By default connects to the KWARC dispatcher, generating e.g. the [arXMLiv corpus
 Strategy: fetch the dependencies via the package managers, then install the bleeding versions from git.
 
 ```bash
-sudo apt-get install latexml libzmq3-dev &&
+sudo apt-get install cpanminus libzmq3-dev &&
+sudo apt-get build-dep latexml &&
 cpanm git@github.com:brucemiller/LaTeXML.git &&
 cpanm git@github.com:dginev/LaTeXML-Plugin-Cortex.git
 ```
