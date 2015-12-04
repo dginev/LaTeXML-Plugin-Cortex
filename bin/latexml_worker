@@ -208,7 +208,7 @@ sub with_external_timer {
   # Record the failure:
   # $job->fail('Fatal:latexml_worker:timeout [$identity] Worker timed out after $time seconds.');
   # We really need KILL here, the "gs" infinite loop from LaTeXML can't be killed in any other way
-  kill '-KILL', getpgrp($$);
+  kill -9, getpgrp($$);
   # And exit;
   exit 0; }
 
