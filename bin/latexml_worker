@@ -73,14 +73,16 @@ zmq_connect($sink, $sink_address);
 # Work in perpetuity
 my $taskid_msg = zmq_msg_init();
 my $recv_msg = zmq_msg_init();
-print STDERR "-- Worker $identity started, waiting for jobs.\n";
+print STDERR "-- [$$] Worker $identity started\n";
 while (1) {
   ### There is no clear reason why we would want to restart the process, in fact restarting it makes us lose the pid for latexml_harness, and causes an unwanted disconnect
   # restart_worker('job limit', $cortex_ip, $cortex_ventilator_port, $cortex_sink_port) if $work_counter > 100; # Respawn every 100 jobs, just to stay safe.
   # First, request a task from the ventilator  
+  print STDERR "-- [$$] Waiting for jobs\n";
   zmq_sendmsg( $ventilator, $service_name );
   my $rv = zmq_msg_recv($taskid_msg, $ventilator, 0);
   my $taskid = zmq_msg_data($taskid_msg);
+  print STDERR "-- [$$] Job found, receiving taskid #$taskid.\n";
   
   # Prepare a File for the input: we want a temp file, on a RAM disk (/dev/shm), without auto-remove
   my ($input_fh, $input_filepath) = tempfile($taskid."_inXXXX", SUFFIX => ".zip", TMPDIR=>1, UNLINK => 0);
@@ -93,11 +95,12 @@ while (1) {
   close $input_fh;
   
   $work_counter++;
-  print STDERR "-- CorTeX task #$taskid (worker job $work_counter) received, converting...\n";
+  print STDERR "-- [$$] Taskid #$taskid received, converting...\n";
 
   my $is_converted = convert($taskid, $input_filepath, $output_filepath);
-  print STDERR "-- Conversion complete, responding...\n";
+  print STDERR "-- [$$] Conversion #$work_counter complete.\n";
   # Let sink know a result is incoming
+  print STDERR "-- [$$] Responding to sink with $taskid result...\n";
   zmq_sendmsg( $sink, $service_name, ZMQ_SNDMORE);
   zmq_sendmsg( $sink, $taskid, ZMQ_SNDMORE);
   # Did the conversion succeed? Determine response based on that.
@@ -119,12 +122,12 @@ while (1) {
     }
     close $output_fh;
     # And the job is done.
-    print STDERR "-- CorTeX task #$taskid (worker job $work_counter) completed.\n";
+    print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) completed.\n";
   }
   else {
     # Conversion failed, send an empty result body
     zmq_send($sink, '', 0, 0);
-    print STDERR "-- CorTeX task #$taskid (worker job $work_counter) failed.\n"; 
+    print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) failed.\n"; 
   }
   # Time to remove our temp files
   unlink($input_filepath);
