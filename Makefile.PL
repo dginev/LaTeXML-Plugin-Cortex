@@ -22,6 +22,9 @@ WriteMakefile(
   VERSION => '0.1',
   PREREQ_PM => { 
     'File::Temp' => 0,
+    'File::Spec' => 0,
+    'File::Find' => 0,
+    'File::Path' => 0,
     'ZMQ::LibZMQ3' => '1.19',
     'LaTeXML'=>'0.8.1',
     'Archive::Zip'=>0,
