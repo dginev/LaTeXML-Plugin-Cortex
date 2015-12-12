@@ -106,8 +106,12 @@ while (1) {
     }
   }
 
+  # Throttle by default, we will only accept an immediate next job if it looks like we've sent actual data back to the sink
+  #  (avoids unpleasant+uncaught edge cases where the reader continues on without performing any work.)
+  my $throttle_guard = 1;
   ### There is no clear reason why we would want to restart the process, in fact restarting it makes us lose the pid for latexml_harness, and causes an unwanted disconnect
-  # restart_worker('job limit', $cortex_ip, $cortex_ventilator_port, $cortex_sink_port) if $work_counter > 100; # Respawn every 100 jobs, just to stay safe.
+  #### restart_worker('job limit', $cortex_ip, $cortex_ventilator_port, $cortex_sink_port) if $work_counter > 100; # Respawn every 100 jobs, just to stay safe.
+  
   # First, request a task from the ventilator  
   print STDERR "-- [$$] Waiting for jobs\n";
   zmq_sendmsg( $ventilator, $service_name );
@@ -142,6 +146,7 @@ while (1) {
     #  Read file in $message_size blocks
     my $data_buffer = '';
     while (my $size = read($output_fh, $data_buffer, $message_size)) {
+      if ($size > 0) { $throttle_guard = 0; } # disable throttle if we've sent back data
       if ($size < $message_size) {
         # Last message
         zmq_send($sink, $data_buffer, $size, 0);
@@ -163,6 +168,10 @@ while (1) {
   # Time to remove our temp files
   unlink($input_filepath);
   unlink($output_filepath);
+  if ($throttle_guard) {
+    print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) did not return data to sink, throttling (5 minute sleep).\n";
+    sleep 300;
+  }
 }
 
 sub convert {
