@@ -4,7 +4,7 @@
 # (So far Deyan is the only one)
 
 my $update_all_cmd = "echo STARTING; hostname; ".
-"cd ~/LaTeXML; git stash; git pull --rebase; git stash pop; cpanm .; ".
+"cd ~/LaTeXML; git stash; git pull --rebase; git stash pop; cpanm . --notest; ".
 "cd ~/LaTeXML-Plugin-Cortex; git stash; git pull --rebase; git stash pop; cpanm .; ".
 "echo ENDING; hostname;";
 
