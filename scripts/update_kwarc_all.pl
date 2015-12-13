@@ -12,7 +12,7 @@ my $home_update = $update_all_cmd;
 $home_update =~ s/\\\$/\$/g;
 my $cortex_update = "ssh deyan\@cortex.mathweb.org 'source /home/deyan/.bashrc;$update_all_cmd'";
 my $beryl_update="ssh deyan\@beryl.eecs.jacobs-university.de 'source /home/deyan/.bashrc;$update_all_cmd'";
-my $hulk_update="ssh deyan\@cortex.mathweb.org \"ssh dginev\@hulk.clamv.jacobs-university.de \\\"ssh node101 'source /direct/home/dginev/.cshrc;$update_all_cmd'\\\"\"";
+my $hulk_update="ssh deyan\@cortex.mathweb.org \"ssh dginev\@10.70.2.212 \\\"ssh node101 'source /direct/home/dginev/.cshrc;$update_all_cmd'\\\"\"";
 
 # Threads in a perl script? Hah! Let's fork it like it's 1989
 if (my $pid_cortex = fork()) {
