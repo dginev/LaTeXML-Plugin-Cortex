@@ -168,8 +168,8 @@ while (1) {
   unlink($input_filepath);
   unlink($output_filepath);
   if ($throttle_guard) {
-    print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) did not return data to sink, throttling (5 minute sleep).\n";
-    sleep 300;
+    print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) did not return data to sink, throttling (1 minute sleep).\n";
+    sleep 60;
   }
 }
 
@@ -191,7 +191,8 @@ sub convert {
     # Group leader, so that we can timeout the entire process group
     setpgrp(0, 0);
     # External timer to prevent problems in system calls
-    my $timer_pid = with_external_timer($timeout_limit);
+    #    20 seconds extra, so that the latexml timeout has theoretical chance to get registered and reported back successfully
+    my $timer_pid = with_external_timer($timeout_limit + 20);
     # CorTeX workhorses have lowest priority, to avoid overloading the machine
     setpriority(0, $$, 20);
 
