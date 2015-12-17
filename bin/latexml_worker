@@ -74,9 +74,9 @@ my $sink = zmq_socket( $sink_context, ZMQ_PUSH );
 zmq_connect($sink, $sink_address);
 
 # Work in perpetuity
+print STDERR "-- [$$] Worker $identity started\n";
 my $taskid_msg = zmq_msg_init();
 my $recv_msg = zmq_msg_init();
-print STDERR "-- [$$] Worker $identity started\n";
 while (1) {
   # Before each job, ensure we have space sanity in the scratch tmpdir we are using
   my @parts = split(/\s+/,`df $ENV{TMPDIR}`); # modern Linux only for now, maybe improve later?
@@ -107,13 +107,16 @@ while (1) {
 
   # Throttle by default, we will only accept an immediate next job if it looks like we've sent actual data back to the sink
   #  (avoids unpleasant+uncaught edge cases where the reader continues on without performing any work.)
+  my $mem_allowance = $free_mem;
+  print STDERR "Current mem_allowance: $mem_allowance\n";
+  my $mem_guard = 0; # Guard for out-of-memory issues.
   my $throttle_guard = 1;
   ### There is no clear reason why we would want to restart the process, in fact restarting it makes us lose the pid for latexml_harness, and causes an unwanted disconnect
   #### restart_worker('job limit', $cortex_ip, $cortex_ventilator_port, $cortex_sink_port) if $work_counter > 100; # Respawn every 100 jobs, just to stay safe.
   
   # First, request a task from the ventilator  
-  print STDERR "-- [$$] Waiting for jobs\n";
   zmq_sendmsg( $ventilator, $service_name );
+  print STDERR "-- [$$] Waiting for jobs\n";
   my $rv = zmq_msg_recv($taskid_msg, $ventilator, 0);
   my $taskid = zmq_msg_data($taskid_msg);
   print STDERR "-- [$$] Job found, receiving taskid #$taskid.\n";
@@ -123,15 +126,36 @@ while (1) {
   my ($output_fh, $output_filepath) = tempfile($taskid."_outXXXX", SUFFIX => ".zip", TMPDIR=>1, UNLINK => 0);
   close $output_fh;
   binmode($input_fh);
-  while (zmq_msg_recv($recv_msg, $ventilator, ZMQ_RCVMORE) > 0) {
-    print $input_fh zmq_msg_data($recv_msg);
+  my $input_size = 0;
+  while (1) {
+    my $received = zmq_msg_recv($recv_msg, $ventilator, ZMQ_RCVMORE);
+    last unless $received > 0;
+
+    $input_size += $received;
+    $mem_allowance -= $received;
+    if ($mem_allowance > 0) {
+      print $input_fh zmq_msg_data($recv_msg);
+    } else {
+      zmq_msg_data($recv_msg);
+      $mem_guard = 1;
+    }
   }
   close $input_fh;
+  # If the remaining memory allowance is less than half the free memory measured at the start of receiving, 
+  # there is a high chance the output won't fit the disk; this is conservative on the side of safety
+  if ($mem_allowance < ($free_mem / 2)) {  $mem_guard = 1; }
+  if ($mem_guard) {
+    print STDERR "-- [$$] Taskid #$taskid could not start conversion, mem_guard triggered.\n";  
+    # Clean up, then move on, we can't work on this task.
+    unlink($input_filepath);
+    unlink($output_filepath);
+    next;
+  }
   
   $work_counter++;
   print STDERR "-- [$$] Taskid #$taskid received, converting...\n";
 
-  my $is_converted = convert($taskid, $input_filepath, $output_filepath);
+  my $is_converted = ($input_size > 0) && convert($taskid, $input_filepath, $output_filepath);
   print STDERR "-- [$$] Conversion #$work_counter complete.\n";
   # Let sink know a result is incoming
   print STDERR "-- [$$] Responding to sink with $taskid result...\n";
@@ -157,7 +181,11 @@ while (1) {
     }
     close $output_fh;
     # And the job is done.
-    print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) completed.\n";
+    if (!$throttle_guard) {
+      print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) completed.\n";
+    } else {
+      print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) failed.\n"; 
+    }
   }
   else {
     # Conversion failed, send an empty result body
