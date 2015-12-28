@@ -43,7 +43,7 @@ my $message_size = 100000;
 my $work_counter = 0;
 my $identity = join('',map { (q(a)..q(z))[rand(26)] } 1 .. 20);
 my $timeout_limit = 1200; # If worker isn't done in 20 minutes - timeout
-my $m_timeout_limit = 2 * $timeout_limit/(24 * 60 * 60); # Twice the timeout is what we allow files to live on the ramdisk
+my $m_timeout_limit = ($timeout_limit+180)/(24 * 60 * 60); # We allow files to live on the ramdisk for 3 minutes longer than the timeout limit. Should be enough for data transfer to complete.
 # We also provide defaults for certain defensive environmental variables, if not yet set
 #  in particular, for LaTeXML's ImageMagick conversion jobs.
 #  pending review at: https://github.com/brucemiller/LaTeXML/pull/666
@@ -79,21 +79,19 @@ my $taskid_msg = zmq_msg_init();
 my $recv_msg = zmq_msg_init();
 while (1) {
   # Before each job, ensure we have space sanity in the scratch tmpdir we are using
-  my @parts = split(/\s+/,`df $ENV{TMPDIR}`); # modern Linux only for now, maybe improve later?
-  my $free_mem = $parts[10] || 0;
-  if ($free_mem < $min_memory_needed) {
-    print STDERR "-- [$$] Free memory is $free_mem, insufficient. Will try to clean up.\n";
+  my $free_mem = 0;
+  { # Always try to clean up old / unneeded files.
     local $\ = "\n";
     my @entries = map {chomp; $_} `ls $ENV{TMPDIR}`;
     foreach $name(@entries) {
       my $entry = "$ENV{TMPDIR}/$name";
       if (-e $entry && (-M $entry > $m_timeout_limit)) {
-        print STDERR "Deleting old entry: $entry";
-        `rm -rf $entry`;
+        print STDERR "-- [$$] Deleting old entry: $entry";
+        eval {system("rm -rf $entry")};
       }
     }
     # Recheck the free memory
-    @parts = split(/\s+/,`df $ENV{TMPDIR}`); # modern Linux only for now, maybe improve later?
+    my @parts = split(/\s+/,`df $ENV{TMPDIR}`); # modern Linux only for now, maybe improve later?
     $free_mem = $parts[10] || 0;
     # If it is still insufficient, sleep for a minute, then retry
     if ($free_mem < $min_memory_needed) {
@@ -108,7 +106,7 @@ while (1) {
   # Throttle by default, we will only accept an immediate next job if it looks like we've sent actual data back to the sink
   #  (avoids unpleasant+uncaught edge cases where the reader continues on without performing any work.)
   my $mem_allowance = $free_mem;
-  print STDERR "Current mem_allowance: $mem_allowance\n";
+  print STDERR "-- [$$] Current mem_allowance: $mem_allowance\n";
   my $mem_guard = 0; # Guard for out-of-memory issues.
   my $throttle_guard = 1;
   ### There is no clear reason why we would want to restart the process, in fact restarting it makes us lose the pid for latexml_harness, and causes an unwanted disconnect
