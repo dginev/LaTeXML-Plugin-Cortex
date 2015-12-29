@@ -53,7 +53,7 @@ $ENV{MAGICK_MAP_LIMIT} = "1GiB" unless defined $ENV{MAGICK_MAP_LIMIT};
 $ENV{MAGICK_TIME_LIMIT} = "300" unless defined $ENV{MAGICK_TIME_LIMIT};
 # No excuses - use the RAM disk
 $ENV{TMPDIR}='/dev/shm';
-$min_memory_needed = 102400; # 100MB for now
+$min_memory_needed = 104_857_600; # 100MB for now
 
 # Set up the cortex endpoints
 my $cortex_ip = shift || '212.201.49.37';
@@ -92,21 +92,21 @@ while (1) {
     }
     # Recheck the free memory
     my @parts = split(/\s+/,`df $ENV{TMPDIR}`); # modern Linux only for now, maybe improve later?
-    $free_mem = $parts[10] || 0;
+    $free_mem = (($parts[10] || 0) + 0) * 1024; # in bytes, the df report is in kB
     # If it is still insufficient, sleep for a minute, then retry
     if ($free_mem < $min_memory_needed) {
-      print STDERR "-- [$$] Free memory is now $free_mem, still insufficient. Sleeping for a minute.\n";
+      print STDERR "-- [$$] Free memory is now $free_mem bytes, still insufficient. Sleeping for a minute.";
       sleep 60;
       next;
     } else {
-      print STDERR "-- [$$] Free memory is now $free_mem, looks good. Proceeding to work.\n";
+      print STDERR "-- [$$] Free memory is now $free_mem bytes, looks good. Proceeding to work.";
     }
   }
 
   # Throttle by default, we will only accept an immediate next job if it looks like we've sent actual data back to the sink
   #  (avoids unpleasant+uncaught edge cases where the reader continues on without performing any work.)
   my $mem_allowance = $free_mem;
-  print STDERR "-- [$$] Current mem_allowance: $mem_allowance\n";
+  print STDERR "-- [$$] Current mem_allowance: $mem_allowance bytes\n";
   my $mem_guard = 0; # Guard for out-of-memory issues.
   my $throttle_guard = 1;
   ### There is no clear reason why we would want to restart the process, in fact restarting it makes us lose the pid for latexml_harness, and causes an unwanted disconnect
