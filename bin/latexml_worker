@@ -227,7 +227,7 @@ sub convert {
     use LaTeXML::Common::Config;
     # Set up conversion parameters for LaTeXML
     my $conversion_opts=LaTeXML::Common::Config->new(local=>1,whatsin=>'archive',whatsout=>'archive',
-      format=>'html5',mathparse=>'RecDescent',post=>1,math_formats=>['pmml','cmml'],
+      format=>'html5',mathparse=>'RecDescent',post=>1,math_formats=>['pmml','cmml','mathtex'],
       preload=>['[ids]latexml.sty'],css=>['http://latexml.mathweb.org/css/external/LaTeXML.css'],
       defaultresources=>0,inputencoding=>'iso-8859-1',timeout=>$timeout_limit,
       log=>$log_filepath);
