@@ -43,7 +43,7 @@ my $message_size = 100000;
 my $work_counter = 0;
 my $identity = join('',map { (q(a)..q(z))[rand(26)] } 1 .. 20);
 my $timeout_limit = 1200; # If worker isn't done in 20 minutes - timeout
-my $m_timeout_limit = ($timeout_limit+180)/(24 * 60 * 60); # We allow files to live on the ramdisk for 3 minutes longer than the timeout limit. Should be enough for data transfer to complete.
+my $m_timeout_limit = $timeout_limit+300; # We allow files to live on the ramdisk for 5 minutes longer than the timeout limit. Should be enough for data transfer to complete.
 # We also provide defaults for certain defensive environmental variables, if not yet set
 #  in particular, for LaTeXML's ImageMagick conversion jobs.
 #  pending review at: https://github.com/brucemiller/LaTeXML/pull/666
@@ -80,14 +80,18 @@ my $recv_msg = zmq_msg_init();
 while (1) {
   # Before each job, ensure we have space sanity in the scratch tmpdir we are using
   my $free_mem = 0;
+  my $now = time();
   { # Always try to clean up old / unneeded files.
     local $\ = "\n";
     my @entries = map {chomp; $_} `ls $ENV{TMPDIR}`;
     foreach $name(@entries) {
       my $entry = "$ENV{TMPDIR}/$name";
-      if (-e $entry && (-M $entry > $m_timeout_limit)) {
-        print STDERR "-- [$$] Deleting old entry: $entry";
-        eval {system("rm -rf $entry")};
+      if (-e $entry) {
+        my $m_entry = $now - (stat($entry))[9];
+        if ($m_entry > $m_timeout_limit) {
+          print STDERR "-- [$$] Deleting old entry: $entry";
+          eval {system("rm -rf $entry")};
+        }
       }
     }
     # Recheck the free memory
