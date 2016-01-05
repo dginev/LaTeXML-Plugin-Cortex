@@ -50,7 +50,7 @@ my $m_timeout_limit = $timeout_limit+300; # We allow files to live on the ramdis
 $ENV{MAGICK_DISK_LIMIT} = "2GiB" unless defined $ENV{MAGICK_DISK_LIMIT};
 $ENV{MAGICK_MEMORY_LIMIT} = "512MiB" unless defined $ENV{MAGICK_MEMORY_LIMIT};
 $ENV{MAGICK_MAP_LIMIT} = "1GiB" unless defined $ENV{MAGICK_MAP_LIMIT};
-$ENV{MAGICK_TIME_LIMIT} = "300" unless defined $ENV{MAGICK_TIME_LIMIT};
+$ENV{MAGICK_TIME_LIMIT} = "$timeout_limit" unless defined $ENV{MAGICK_TIME_LIMIT};
 # No excuses - use the RAM disk
 $ENV{TMPDIR}='/dev/shm';
 $min_memory_needed = 104_857_600; # 100MB for now
@@ -216,13 +216,13 @@ sub convert {
     return waitpid($pid, 0); 
   }
   ###
-  # 1. CHILD
+  # 2. CHILD
   else {
     # Group leader, so that we can timeout the entire process group
     setpgrp(0, 0);
     # External timer to prevent problems in system calls
     #    20 seconds extra, so that the latexml timeout has theoretical chance to get registered and reported back successfully
-    my $timer_pid = with_external_timer($timeout_limit + 20);
+    my $timer_pid = with_external_timer($timeout_limit + 20, $destination, $log_filepath);
     # CorTeX workhorses have lowest priority, to avoid overloading the machine
     setpriority(0, $$, 20);
 
@@ -271,7 +271,7 @@ sub restart_worker {
     or die("Fatal:latexml_worker:restart Worker $$ autoflush Failed!"); }
 
 sub with_external_timer {
-  my ($time) = @_;
+  my ($time, $destination, $log_filepath) = @_;
   my $parent = $$;
   my $pid = fork();
   return $pid if $pid; # If parent finishes normally, it will kill $pid
@@ -284,8 +284,13 @@ sub with_external_timer {
   # $job->fail('Fatal:latexml_worker:timeout [$identity] Worker timed out after $time seconds.');
   # We really need KILL here, the "gs" infinite loop from LaTeXML can't be killed in any other way
   kill -9, getpgrp($$);
+  # Write a fail archive
+  $fail_archive = Archive::Zip->new();
+  my $log_text = "Fatal:cortex:dirty_timeout\nStatus:conversion:3";
+  $fail_archive->addString("$log_text",$log_filepath);
   # And exit;
-  exit 0; }
+  exit ($fail_archive->writeToFileNamed($destination) == AZ_OK); 
+}
 
 sub reset_external_timer {
   my ($pid) = @_;
