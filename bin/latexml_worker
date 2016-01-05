@@ -87,7 +87,7 @@ while (1) {
     foreach $name(@entries) {
       my $entry = "$ENV{TMPDIR}/$name";
       if (-e $entry) {
-        my $m_entry = $now - (stat($entry))[9];
+        my $m_entry = $now - (lstat($entry))[9];
         if ($m_entry > $m_timeout_limit) {
           print STDERR "-- [$$] Deleting old entry: $entry";
           eval {system("rm -rf $entry")};
