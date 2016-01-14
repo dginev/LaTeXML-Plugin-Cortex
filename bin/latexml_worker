@@ -25,6 +25,7 @@ use ZMQ::Constants qw(ZMQ_DEALER ZMQ_PUSH ZMQ_SNDMORE ZMQ_RCVMORE ZMQ_IDENTITY);
 use File::Temp qw(tempfile);
 use File::Find;
 use Archive::Zip qw(:CONSTANTS :ERROR_CODES);
+use List::Util qw(min);
 use Proc::ProcessTable;
 
 # Obtain the path of this executable, for easy restart.
@@ -273,15 +274,17 @@ sub restart_worker {
     or die("Fatal:latexml_worker:restart Worker $$ autoflush Failed!"); }
 
 sub with_external_guard {
-  my ($time, $memory_limit, $destination, $log_filepath) = @_;
+  my ($timeout_limit, $memory_limit, $destination, $log_filepath) = @_;
   my $parent = $$;
   my $pid = fork();
   return $pid if $pid; # If parent finishes normally, it will kill $pid
-  for (1..$time) {
-    sleep 1; # Sleep for a second
+  while ($timeout_limit > 0) {
+    sleep(min(10,$timeout_limit)); # Sleep for ten seconds
+    $timeout_limit -= 10; # update remaining timeout limit
+
+    # end prematurely if the memory_limit guard is violated
     if (memory_usage($parent) > $memory_limit) {
-      # end prematurely if the memory_limit guard is violated
-      print STDERR "Memory guard triggered, PID $parent exceeded $memory_limit bytes RSS\n";
+      print STDERR "[".localtime()."] [$$] Memory guard triggered, PID $parent exceeded $memory_limit bytes RSS\n";
       last;
     }
   }

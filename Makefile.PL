@@ -27,6 +27,7 @@ WriteMakefile(
     'File::Path' => 0,
     'ZMQ::LibZMQ3' => '1.19',
     'LaTeXML'=>'0.8.1',
+    'List::Util' => 0,
     'Archive::Zip'=>0,
     'Unix::Processors'=>0,
     'Proc::ProcessTable'=>0
