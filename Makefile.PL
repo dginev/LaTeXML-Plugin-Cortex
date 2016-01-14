@@ -28,7 +28,8 @@ WriteMakefile(
     'ZMQ::LibZMQ3' => '1.19',
     'LaTeXML'=>'0.8.1',
     'Archive::Zip'=>0,
-    'Unix::Processors'=>0
+    'Unix::Processors'=>0,
+    'Proc::ProcessTable'=>0
   },
   EXE_FILES => ['bin/latexml_worker', 'bin/latexml_harness'],
   (eval { ExtUtils::MakeMaker->VERSION(6.46) } ? (META_MERGE => {

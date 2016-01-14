@@ -25,6 +25,7 @@ use ZMQ::Constants qw(ZMQ_DEALER ZMQ_PUSH ZMQ_SNDMORE ZMQ_RCVMORE ZMQ_IDENTITY);
 use File::Temp qw(tempfile);
 use File::Find;
 use Archive::Zip qw(:CONSTANTS :ERROR_CODES);
+use Proc::ProcessTable;
 
 # Obtain the path of this executable, for easy restart.
 use FindBin;
@@ -42,6 +43,7 @@ my $service_name = 'tex_to_html';
 my $message_size = 100000;
 my $work_counter = 0;
 my $identity = join('',map { (q(a)..q(z))[rand(26)] } 1 .. 20);
+my $memory_limit = 2 * 1024 * 1024 * 1024; # 2 GB max, we can't risk going out of control on large clusters
 my $timeout_limit = 1200; # If worker isn't done in 20 minutes - timeout
 my $m_timeout_limit = $timeout_limit+300; # We allow files to live on the ramdisk for 5 minutes longer than the timeout limit. Should be enough for data transfer to complete.
 # We also provide defaults for certain defensive environmental variables, if not yet set
@@ -222,7 +224,7 @@ sub convert {
     setpgrp(0, 0);
     # External timer to prevent problems in system calls
     #    20 seconds extra, so that the latexml timeout has theoretical chance to get registered and reported back successfully
-    my $timer_pid = with_external_timer($timeout_limit + 20, $destination, $log_filepath);
+    my $timer_pid = with_external_guard($timeout_limit + 20, $memory_limit, $destination, $log_filepath);
     # CorTeX workhorses have lowest priority, to avoid overloading the machine
     setpriority(0, $$, 20);
 
@@ -270,12 +272,19 @@ sub restart_worker {
   exec("$RealBin_safe/latexml_worker",$cortex_ip, $cortex_ventilator_port, $cortex_sink_port)
     or die("Fatal:latexml_worker:restart Worker $$ autoflush Failed!"); }
 
-sub with_external_timer {
-  my ($time, $destination, $log_filepath) = @_;
+sub with_external_guard {
+  my ($time, $memory_limit, $destination, $log_filepath) = @_;
   my $parent = $$;
   my $pid = fork();
   return $pid if $pid; # If parent finishes normally, it will kill $pid
-  sleep $time; # Sleep for the timeout
+  for (1..$time) {
+    sleep 1; # Sleep for a second
+    if (memory_usage($parent) > $memory_limit) {
+      # end prematurely if the memory_limit guard is violated
+      print STDERR "Memory guard triggered, PID $parent exceeded $memory_limit bytes RSS\n";
+      last;
+    }
+  }
 
   # Core timeout handler:
   # If we haven't been killed, there is a system call timeout => kill the parent
@@ -295,6 +304,17 @@ sub with_external_timer {
 sub reset_external_timer {
   my ($pid) = @_;
   kill 'KILL', $pid;
-  return; }
+  return;
+}
+
+sub memory_usage {
+  my $pid = shift || $$;
+  my $t = Proc::ProcessTable->new();  
+  foreach my $got ( @{$t->table} ) {  
+    next if not $got->pid eq $pid;  
+    return $got->rss;
+  }
+  return 0; # if not found
+}
 
 1;
