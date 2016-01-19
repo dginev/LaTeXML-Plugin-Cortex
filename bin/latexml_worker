@@ -55,6 +55,7 @@ $ENV{MAGICK_MEMORY_LIMIT} = "512MiB" unless defined $ENV{MAGICK_MEMORY_LIMIT};
 $ENV{MAGICK_MAP_LIMIT} = "1GiB" unless defined $ENV{MAGICK_MAP_LIMIT};
 $ENV{MAGICK_TIME_LIMIT} = "900" unless defined $ENV{MAGICK_TIME_LIMIT};
 # No excuses - use the RAM disk
+$ENV{MAGICK_TMPDIR} = '/dev/shm';
 $ENV{TMPDIR}='/dev/shm';
 $min_memory_needed = 104_857_600; # 100MB for now
 
