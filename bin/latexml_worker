@@ -8,13 +8,13 @@
 # Created and provided by Deyan Ginev
 #   released in the Public Domain
 
-### 
+###
 # Explanation: The goal here is to stay "safe" in the following aspects:
 # - RAM allocation for CorTeX I/O - some jobs in arXiv are >1GB. Hence we stream both input and output into RAMdisk tempfiles.
 # - RAM allocation for LaTeXML - Perl's garbage collector dangerously takes its time with certain structures, deallocating only at
 #     process termination. To ensure deallocation, while also benefiting from the daemonization speedups, we do a Perl fork() for each latexml job.
 # - Rogue infinite loops / busy malfunctions: arXiv has certain image files that send "convert" and "gs" for a loop, turning latexml unresponsive.
-#     To counteract these we use: 
+#     To counteract these we use:
 #     1) a separate process to observe the timeout (as even alarm() can't fire in some blocked cases!)
 #     2) The 9 kill signal (only fire seemed to work)
 #     3) The occasional worker restart, every 100 jobs or so.
@@ -35,7 +35,7 @@ BEGIN {
   $FindBin::RealBin =~ /^([^\0]+)\z/; # Valid Unix path TODO: Windows, revisit regexp
   $RealBin_safe = $1;
   die 'Fatal:IO:tainted RealBin was tainted! Failing...'
-   unless ($RealBin_safe && (-e $RealBin_safe.'/latexml_worker')); 
+   unless ($RealBin_safe && (-e $RealBin_safe.'/latexml_worker'));
 }
 
 
@@ -119,14 +119,14 @@ while (1) {
   my $throttle_guard = 1;
   ### There is no clear reason why we would want to restart the process, in fact restarting it makes us lose the pid for latexml_harness, and causes an unwanted disconnect
   #### restart_worker('job limit', $cortex_ip, $cortex_ventilator_port, $cortex_sink_port) if $work_counter > 100; # Respawn every 100 jobs, just to stay safe.
-  
-  # First, request a task from the ventilator  
+
+  # First, request a task from the ventilator
   zmq_sendmsg( $ventilator, $service_name );
   print STDERR "-- [$$] Waiting for jobs\n";
   my $rv = zmq_msg_recv($taskid_msg, $ventilator, 0);
   my $taskid = zmq_msg_data($taskid_msg);
   print STDERR "-- [$$] Job found, receiving taskid #$taskid.\n";
-  
+
   # Prepare a File for the input: we want a temp file, on a RAM disk (/dev/shm), without auto-remove
   my ($input_fh, $input_filepath) = tempfile($taskid."_inXXXX", SUFFIX => ".zip", TMPDIR=>1, UNLINK => 0);
   my ($output_fh, $output_filepath) = tempfile($taskid."_outXXXX", SUFFIX => ".zip", TMPDIR=>1, UNLINK => 0);
@@ -147,24 +147,27 @@ while (1) {
     }
   }
   close $input_fh;
-  # If the remaining memory allowance is less than half the free memory measured at the start of receiving, 
+  # If the remaining memory allowance is less than half the free memory measured at the start of receiving,
   # there is a high chance the output won't fit the disk; this is conservative on the side of safety
   if ($mem_allowance < ($free_mem / 2)) {  $mem_guard = 1; }
   if ($mem_guard) {
-    print STDERR "-- [$$] Taskid #$taskid could not start conversion, mem_guard triggered.\n";  
+    print STDERR "-- [$$] Taskid #$taskid could not start conversion, mem_guard triggered.\n";
     # Clean up, then move on, we can't work on this task.
     unlink($input_filepath);
     unlink($output_filepath);
     next;
   }
-  
+
   $work_counter++;
   print STDERR "-- [$$] Taskid #$taskid received, converting...\n";
 
-  my $is_converted = ($input_size > 0) && convert($taskid, $input_filepath, $output_filepath);
+  if ($input_size > 0) {
+    convert($taskid, $input_filepath, $output_filepath);
+  }
+  my $is_converted = (-s $output_filepath);
   print STDERR "-- [$$] Conversion #$work_counter complete.\n";
   # Let sink know a result is incoming
-  print STDERR "-- [$$] Responding to sink with $taskid result...\n";
+  print STDERR "-- [$$] Responding to sink with $taskid result ($is_converted bytes)...\n";
   zmq_sendmsg( $sink, $service_name, ZMQ_SNDMORE);
   zmq_sendmsg( $sink, $taskid, ZMQ_SNDMORE);
   # Did the conversion succeed? Determine response based on that.
@@ -190,13 +193,13 @@ while (1) {
     if (!$throttle_guard) {
       print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) completed.\n";
     } else {
-      print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) failed.\n"; 
+      print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) failed.\n";
     }
   }
   else {
     # Conversion failed, send an empty result body
     zmq_send($sink, '', 0, 0);
-    print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) failed.\n"; 
+    print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) failed.\n";
   }
   # Time to remove our temp files
   unlink($input_filepath);
@@ -217,7 +220,7 @@ sub convert {
   # 1. PARENT
   if ($pid) {
     # Simply wait for the child to terminate and return:
-    return waitpid($pid, 0); 
+    return waitpid($pid, 0);
   }
   ###
   # 2. CHILD
@@ -246,9 +249,9 @@ sub convert {
     # Actual latexml conversion happens here.
     $converter->prepare_session($conversion_opts);
     my $response = $converter->convert($source);
-    reset_external_timer($timer_pid); # Reset external timer 
+    reset_external_timer($timer_pid); # Reset external timer
     # This is a little silly -> the LaTeXML API does not (yet?) support direct local writing of Archives.
-    # In other words, the final Archive is contained into $response - a potentially huge variable. 
+    # In other words, the final Archive is contained into $response - a potentially huge variable.
     # In any case, let's write that variable into the needed destination:
     my $output_handle;
     if (!($response->{result} && open($output_handle, ">", $destination))) {
@@ -260,9 +263,9 @@ sub convert {
       binmode($output_handle);
       my $print_ok = print $output_handle $response->{result};
       close $output_handle;
-      exit $print_ok; } 
+      exit $print_ok; }
     # This convert process is a one-time job, ending here.
-    exit 0; 
+    exit 0;
   }
 }
 
@@ -302,7 +305,7 @@ sub with_external_guard {
   my $log_text = "Fatal:cortex:dirty_timeout\nStatus:conversion:3";
   $fail_archive->addString("$log_text",$log_filepath);
   # And exit;
-  exit ($fail_archive->writeToFileNamed($destination) == AZ_OK); 
+  exit ($fail_archive->writeToFileNamed($destination) == AZ_OK);
 }
 
 sub reset_external_timer {
@@ -313,9 +316,9 @@ sub reset_external_timer {
 
 sub memory_usage {
   my $pid = shift || $$;
-  my $t = Proc::ProcessTable->new();  
-  foreach my $got ( @{$t->table} ) {  
-    next if not $got->pid eq $pid;  
+  my $t = Proc::ProcessTable->new();
+  foreach my $got ( @{$t->table} ) {
+    next if not $got->pid eq $pid;
     return $got->rss;
   }
   return 0; # if not found
