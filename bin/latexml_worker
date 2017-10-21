@@ -21,7 +21,7 @@
 # We pay a price here - fork() is an expensive op, however that is worth the price in order to ensure memory safety.
 
 use ZMQ::LibZMQ3;
-use ZMQ::Constants qw(ZMQ_DEALER ZMQ_PUSH ZMQ_SNDMORE ZMQ_RCVMORE ZMQ_IDENTITY);
+use ZMQ::Constants qw(ZMQ_DEALER ZMQ_PUSH ZMQ_SNDMORE ZMQ_DONTWAIT ZMQ_RCVMORE ZMQ_IDENTITY);
 use File::Temp qw(tempfile);
 use File::Find;
 use Archive::Zip qw(:CONSTANTS :ERROR_CODES);
@@ -123,8 +123,18 @@ while (1) {
   # First, request a task from the ventilator
   zmq_sendmsg( $ventilator, $service_name );
   print STDERR "-- [$$] Waiting for jobs\n";
-  my $rv = zmq_msg_recv($taskid_msg, $ventilator, 0);
-  my $taskid = zmq_msg_data($taskid_msg);
+  my $rv = -1;
+  my $taskid = -1;
+  my $debounced_wait = 1;
+  while ($rv == -1) {
+    $rv = zmq_msg_recv($taskid_msg, $ventilator, ZMQ_DONTWAIT);
+    $taskid = zmq_msg_data($taskid_msg);
+    if ($rv == -1) {
+      $debounced_wait = $debounced_wait * 2; # double the pause if still no presence
+      print STDERR "-- [$$] No job found, will retry in $debounced_wait seconds.\n";
+      sleep $debounced_wait; # retry in 2 seconds
+    }
+  }
   print STDERR "-- [$$] Job found, receiving taskid #$taskid.\n";
 
   # Prepare a File for the input: we want a temp file, on a RAM disk (/dev/shm), without auto-remove
@@ -160,17 +170,19 @@ while (1) {
 
   $work_counter++;
   print STDERR "-- [$$] Taskid #$taskid received, converting...\n";
-
+  my $is_converted = 0;
   if ($input_size > 0) {
     convert($taskid, $input_filepath, $output_filepath);
+    $is_converted = (-s $output_filepath);
+    print STDERR "-- [$$] Conversion #$work_counter complete.\n";
+    # Let sink know a result is incoming
+    print STDERR "-- [$$] Responding to sink with $taskid result ($is_converted bytes)...\n";
+    zmq_sendmsg( $sink, $service_name, ZMQ_SNDMORE);
+    zmq_sendmsg( $sink, $taskid, ZMQ_SNDMORE);
+    # Did the conversion succeed? Determine response based on that.
+  } else {
+    # No input, don't reply.
   }
-  my $is_converted = (-s $output_filepath);
-  print STDERR "-- [$$] Conversion #$work_counter complete.\n";
-  # Let sink know a result is incoming
-  print STDERR "-- [$$] Responding to sink with $taskid result ($is_converted bytes)...\n";
-  zmq_sendmsg( $sink, $service_name, ZMQ_SNDMORE);
-  zmq_sendmsg( $sink, $taskid, ZMQ_SNDMORE);
-  # Did the conversion succeed? Determine response based on that.
   if ($is_converted) {
     open($output_fh, "<", $output_filepath);
     binmode($output_fh);
