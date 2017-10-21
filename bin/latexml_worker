@@ -87,7 +87,7 @@ while (1) {
   my $now = time();
   { # Always try to clean up old / unneeded files.
     local $\ = "\n";
-    my @entries = map {chomp; $_} `ls $ENV{TMPDIR}`;
+    my @entries = grep {/^\d/} map {chomp; $_} `ls $ENV{TMPDIR}`;
     foreach $name(@entries) {
       my $entry = "$ENV{TMPDIR}/$name";
       if (-e $entry) {
