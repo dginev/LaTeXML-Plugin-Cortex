@@ -19,7 +19,7 @@ WriteMakefile(
   NAME => 'LaTeXML::Plugin::Cortex',
   AUTHOR => 'Deyan Ginev <d.ginev@jacobs-university.de>',
   ABSTRACT => "A CorTeX worker for LaTeXML",
-  VERSION => '0.1',
+  VERSION => '0.2',
   PREREQ_PM => { 
     'File::Temp' => 0,
     'File::Spec' => 0,
