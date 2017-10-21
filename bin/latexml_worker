@@ -19,6 +19,8 @@
 #     2) The 9 kill signal (only fire seemed to work)
 #     3) The occasional worker restart, every 100 jobs or so.
 # We pay a price here - fork() is an expensive op, however that is worth the price in order to ensure memory safety.
+use strict;
+use warnings;
 
 use ZMQ::LibZMQ3;
 use ZMQ::Constants qw(ZMQ_DEALER ZMQ_PUSH ZMQ_SNDMORE ZMQ_DONTWAIT ZMQ_RCVMORE ZMQ_IDENTITY);
@@ -57,7 +59,7 @@ $ENV{MAGICK_TIME_LIMIT} = "900" unless defined $ENV{MAGICK_TIME_LIMIT};
 # No excuses - use the RAM disk
 $ENV{MAGICK_TMPDIR} = '/dev/shm';
 $ENV{TMPDIR}='/dev/shm';
-$min_memory_needed = 104_857_600; # 100MB for now
+my $min_memory_needed = 104_857_600; # 100MB for now
 
 # Set up the cortex endpoints
 my $cortex_ip = shift || '212.201.49.37';
@@ -65,30 +67,33 @@ my $cortex_ventilator_port = shift || '5555';
 my $cortex_sink_port = shift || '5556';
 my $ventilator_address = "tcp://$cortex_ip:$cortex_ventilator_port";
 my $sink_address = "tcp://$cortex_ip:$cortex_sink_port";
+my $free_mem = 0;
+
+my $zmq_context = zmq_ctx_new;
 
 # Connect to a task ventilator
-my $ventilator_context = zmq_init;
-my $ventilator = zmq_socket( $ventilator_context, ZMQ_DEALER );
+my $ventilator = zmq_socket( $zmq_context, ZMQ_DEALER );
 zmq_setsockopt($ventilator, ZMQ_IDENTITY, $identity);
 zmq_connect($ventilator, $ventilator_address);
 
 # Connect to a task sink
-my $sink_context = zmq_init;
-my $sink = zmq_socket( $sink_context, ZMQ_PUSH );
+my $sink = zmq_socket( $zmq_context, ZMQ_PUSH );
 zmq_connect($sink, $sink_address);
 
 # Work in perpetuity
 print STDERR "-- [$$] Worker $identity started\n";
 my $taskid_msg = zmq_msg_init();
 my $recv_msg = zmq_msg_init();
+my $taskid = -1;
+
 while (1) {
   # Before each job, ensure we have space sanity in the scratch tmpdir we are using
-  my $free_mem = 0;
+  $free_mem = 0;
   my $now = time();
   { # Always try to clean up old / unneeded files.
     local $\ = "\n";
     my @entries = grep {/^\d/} map {chomp; $_} `ls $ENV{TMPDIR}`;
-    foreach $name(@entries) {
+    foreach my $name(@entries) {
       my $entry = "$ENV{TMPDIR}/$name";
       if (-e $entry) {
         my $m_entry = $now - (lstat($entry))[9];
@@ -107,7 +112,7 @@ while (1) {
       sleep 60;
       next;
     } else {
-      print STDERR "-- [$$] Free memory is now $free_mem bytes, looks good. Proceeding to work.";
+      # print STDERR "-- [$$] Free memory is now $free_mem bytes, looks good. Proceeding to work.";
     }
   }
 
@@ -122,19 +127,34 @@ while (1) {
 
   print STDERR "-- [$$] Waiting for jobs\n";
   my $rv = -1;
-  my $taskid = -1;
+  my $send_status = -1;
+  $taskid = -1;
   my $debounced_wait = 1;
-  while ($rv == -1) {
+  do {
     # First, request a task from the ventilator
-    zmq_sendmsg( $ventilator, $service_name );
+    $send_status = zmq_sendmsg( $ventilator, $service_name);
+    print STDERR "-- [$$] Send status: $send_status \n";
+    if ($send_status == -1) {
+      print STDERR "-- [$$] Could not reach ventilator: $! | Retry in $debounced_wait s.\n";
+      # double the pause if still no presence, recheck each minute
+      if ($debounced_wait < 60) {
+        $debounced_wait = $debounced_wait * 2;
+      }
+      sleep $debounced_wait; # retry in 2 seconds
+      next;
+    }
     $rv = zmq_msg_recv($taskid_msg, $ventilator, ZMQ_DONTWAIT);
-    $taskid = zmq_msg_data($taskid_msg);
     if ($rv == -1) {
-      $debounced_wait = $debounced_wait * 2; # double the pause if still no presence
-      print STDERR "-- [$$] No job found, will retry in $debounced_wait seconds.\n";
+      # double the pause if still no presence, recheck each minute
+      if ($debounced_wait < 60) {
+        $debounced_wait = $debounced_wait * 2;
+      }
+      print STDERR "-- [$$] Failed initial task msg_recv: $! |Retry in $debounced_wait s.\n";
       sleep $debounced_wait; # retry in 2 seconds
     }
-  }
+  } while (($send_status == -1) || ($rv == -1));
+
+  $taskid = zmq_msg_data($taskid_msg);
   print STDERR "-- [$$] Job found, receiving taskid #$taskid.\n";
 
   # Prepare a File for the input: we want a temp file, on a RAM disk (/dev/shm), without auto-remove
@@ -143,17 +163,30 @@ while (1) {
   close $output_fh;
   binmode($input_fh);
   my $input_size = 0;
+  $debounced_wait = 1;
   while (1) {
     my $received = zmq_msg_recv($recv_msg, $ventilator, ZMQ_RCVMORE);
-    last unless $received > 0;
+    if ($received <= -1) {
+      if ($debounced_wait < 60) {
+        $debounced_wait = $debounced_wait * 2;
+      }
+      print STDERR "-- [$$] Failed incremental download of task: $! |Retry in $debounced_wait s.\n";
+      sleep $debounced_wait; # retry in 2 seconds
+      next;
+    }
 
     $input_size += $received;
     $mem_allowance -= $received;
+    my $msg_data = zmq_msg_data($recv_msg);
     if ($mem_allowance > 0) {
-      print $input_fh zmq_msg_data($recv_msg);
+      print $input_fh $msg_data;
     } else {
-      zmq_msg_data($recv_msg);
+      print STDERR "-- [$$] Memory allowance exhausted, discarding packet.\n";
       $mem_guard = 1;
+    }
+
+    if ($received < $message_size) { # a received packet smaller than the selected message size is the final one
+      last;
     }
   }
   close $input_fh;
@@ -184,12 +217,12 @@ while (1) {
     # No input, don't reply.
   }
   if ($is_converted) {
-    open($output_fh, "<", $output_filepath);
-    binmode($output_fh);
+    open(my $converted_fh, "<", $output_filepath);
+    binmode($converted_fh);
     # Stream converted data via zmq
     #  Read file in $message_size blocks
     my $data_buffer = '';
-    while (my $size = read($output_fh, $data_buffer, $message_size)) {
+    while (my $size = read($converted_fh, $data_buffer, $message_size)) {
       if ($size > 0) { $throttle_guard = 0; } # disable throttle if we've sent back data
       if ($size < $message_size) {
         # Last message
@@ -200,7 +233,7 @@ while (1) {
       }
       $data_buffer = '';
     }
-    close $output_fh;
+    close $converted_fh;
     # And the job is done.
     if (!$throttle_guard) {
       print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) completed.\n";
@@ -267,7 +300,7 @@ sub convert {
     # In any case, let's write that variable into the needed destination:
     my $output_handle;
     if (!($response->{result} && open($output_handle, ">", $destination))) {
-      $fail_archive = Archive::Zip->new();
+      my $fail_archive = Archive::Zip->new();
       my $log_text = $response->{log} || "Fatal:unknown:empty_output\nStatus:conversion:3";
       $fail_archive->addString("$log_text",$log_filepath);
       exit ($fail_archive->writeToFileNamed($destination) == AZ_OK); }
@@ -313,7 +346,7 @@ sub with_external_guard {
   # We really need KILL here, the "gs" infinite loop from LaTeXML can't be killed in any other way
   kill -9, getpgrp($$);
   # Write a fail archive
-  $fail_archive = Archive::Zip->new();
+  my $fail_archive = Archive::Zip->new();
   my $log_text = "Fatal:cortex:dirty_timeout\nStatus:conversion:3";
   $fail_archive->addString("$log_text",$log_filepath);
   # And exit;
