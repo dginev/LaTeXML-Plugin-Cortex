@@ -120,13 +120,13 @@ while (1) {
   ### There is no clear reason why we would want to restart the process, in fact restarting it makes us lose the pid for latexml_harness, and causes an unwanted disconnect
   #### restart_worker('job limit', $cortex_ip, $cortex_ventilator_port, $cortex_sink_port) if $work_counter > 100; # Respawn every 100 jobs, just to stay safe.
 
-  # First, request a task from the ventilator
-  zmq_sendmsg( $ventilator, $service_name );
   print STDERR "-- [$$] Waiting for jobs\n";
   my $rv = -1;
   my $taskid = -1;
   my $debounced_wait = 1;
   while ($rv == -1) {
+    # First, request a task from the ventilator
+    zmq_sendmsg( $ventilator, $service_name );
     $rv = zmq_msg_recv($taskid_msg, $ventilator, ZMQ_DONTWAIT);
     $taskid = zmq_msg_data($taskid_msg);
     if ($rv == -1) {
