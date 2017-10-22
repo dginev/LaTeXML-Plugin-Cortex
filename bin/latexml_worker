@@ -119,7 +119,7 @@ while (1) {
   # Throttle by default, we will only accept an immediate next job if it looks like we've sent actual data back to the sink
   #  (avoids unpleasant+uncaught edge cases where the reader continues on without performing any work.)
   my $mem_allowance = $free_mem;
-  print STDERR "-- [$$] Current mem_allowance: $mem_allowance bytes\n";
+  # print STDERR "-- [$$] Current mem_allowance: $mem_allowance bytes\n";
   my $mem_guard = 0; # Guard for out-of-memory issues.
   my $throttle_guard = 1;
   ### There is no clear reason why we would want to restart the process, in fact restarting it makes us lose the pid for latexml_harness, and causes an unwanted disconnect
@@ -225,28 +225,59 @@ while (1) {
     print STDERR "-- [$$] Conversion #$work_counter complete.\n";
     # Let sink know a result is incoming
     print STDERR "-- [$$] Responding to sink with $taskid result ($is_converted bytes)...\n";
-    zmq_sendmsg($sink, $service_name, ZMQ_SNDMORE);
+    my $send_status = -1;
+    my $debounced_wait = 1;
+    while($send_status <= -1) {
+      $send_status = zmq_sendmsg($sink, $service_name, ZMQ_SNDMORE);
+      last if $send_status > -1;
+      # Request, failed, debounced retry
+      if ($debounced_wait < 60) {
+        $debounced_wait = $debounced_wait * 2;
+      } else {
+        # We've waited for too long, this process seems defunct (or alternatively - unneeded)
+        # Terminating...
+        print STDERR "-- [$$] zmq_sendmsg to sink unreachable, cleaning up...\n";
+        zmq_setsockopt($ventilator, ZMQ_LINGER, 0);
+        zmq_setsockopt($sink, ZMQ_LINGER, 0);
+        zmq_msg_close($recv_msg);
+        zmq_msg_close($taskid_msg);
+        zmq_close($ventilator);
+        zmq_close($sink);
+        zmq_term($zmq_context);
+        print STDERR "-- [$$] zmq_sendmsg to sink unreachable, exiting!\n";
+        exit 0;
+      }
+      print STDERR "-- [$$] Failed initial sink send: $! |Retry in $debounced_wait s.\n";
+      sleep $debounced_wait; # retry in 2 seconds
+    }
+    print STDERR "-- [$$] initial zmq_send to sink successful: $send_status\n";
     zmq_sendmsg($sink, $taskid, ZMQ_SNDMORE);
-    # Did the conversion succeed? Determine response based on that.
   } else {
     # No input, don't reply.
+    print STDERR "-- [$$] Taskid #$taskid received, but empty? skipping...\n";
   }
-  if ($is_converted) {
+  if ($is_converted) { # Did the conversion succeed? Determine response payload if so
     open(my $converted_fh, "<", $output_filepath);
     binmode($converted_fh);
     # Stream converted data via zmq
     #  Read file in $message_size blocks
     my $data_buffer = '';
     while (my $size = read($converted_fh, $data_buffer, $message_size)) {
-      if ($size > 0) { $throttle_guard = 0; } # disable throttle if we've sent back data
+      # Disable throttle if we've sent back data
+      # Note: the throttle guards us from aberrant workers that may be e.g. out of disk space on the local machine
+      #       and hence may quickly fetch & fail, draining the job queue with misleading Fatal errors.
+      # Hence, ALWAYS when an output file fails to be written, even if due to genuine errors in the document markup,
+      #       add a one minute pause to the worker. We can not trust workers to be fully robust and error-free.
+      if ($size > 0) { $throttle_guard = 0; }
       if ($size < $message_size) {
-        # Last message
+        # Last message if under size quota, finalize
         zmq_send($sink, $data_buffer, $size, 0);
+        last;
       } else {
         # Message part, more will follow
         zmq_send($sink,$data_buffer, $size, ZMQ_SNDMORE);
+        $data_buffer = '';
       }
-      $data_buffer = '';
     }
     close $converted_fh;
     # And the job is done.
@@ -256,8 +287,7 @@ while (1) {
       print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) failed.\n";
     }
   }
-  else {
-    # Conversion failed, send an empty result body
+  elsif ($input_size > 0) { # Conversion failed, send an empty result body (if we had input)
     zmq_send($sink, '', 0, 0);
     print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) failed.\n";
   }
