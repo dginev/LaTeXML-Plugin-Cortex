@@ -74,14 +74,14 @@ my $zmq_context = zmq_ctx_new;
 # Connect to a task ventilator
 my $ventilator = zmq_socket( $zmq_context, ZMQ_DEALER );
 zmq_setsockopt($ventilator, ZMQ_IDENTITY, $identity);
-zmq_connect($ventilator, $ventilator_address) && die "-- [$$] Connect to ventilator failed!\n";
+zmq_connect($ventilator, $ventilator_address) && die "-- [$$] connect to ventilator failed!\n";
 
 # Connect to a task sink
 my $sink = zmq_socket( $zmq_context, ZMQ_PUSH );
-zmq_connect($sink, $sink_address) && die "-- [$$] Connect to ventilator failed!\n";
+zmq_connect($sink, $sink_address) && die "-- [$$] connect to ventilator failed!\n";
 
 # Work in perpetuity
-print STDERR "-- [$$] Worker $identity started\n";
+print STDERR "-- [$$] worker $identity started\n";
 my $taskid = -1;
 my $taskid_msg = zmq_msg_init();
 my $recv_msg = zmq_msg_init();
@@ -98,7 +98,7 @@ while (1) {
       if (-e $entry) {
         my $m_entry = $now - (lstat($entry))[9];
         if ($m_entry > $m_timeout_limit) {
-          print STDERR "-- [$$] Deleting old entry: $entry";
+          print STDERR "-- [$$] deleting old entry: $entry";
           eval {system("rm -rf $entry")};
         }
       }
@@ -108,7 +108,7 @@ while (1) {
     $free_mem = (($parts[10] || 0) + 0) * 1024; # in bytes, the df report is in kB
     # If it is still insufficient, sleep for a minute, then retry
     if ($free_mem < $min_memory_needed) {
-      print STDERR "-- [$$] Free memory is now $free_mem bytes, still insufficient. Sleeping for a minute.";
+      print STDERR "-- [$$] free memory is now $free_mem bytes, still insufficient. Sleeping for a minute.";
       sleep 60;
       next;
     } else {
@@ -125,10 +125,10 @@ while (1) {
   ### There is no clear reason why we would want to restart the process, in fact restarting it makes us lose the pid for latexml_harness, and causes an unwanted disconnect
   #### restart_worker('job limit', $cortex_ip, $cortex_ventilator_port, $cortex_sink_port) if $work_counter > 100; # Respawn every 100 jobs, just to stay safe.
 
-  print STDERR "-- [$$] Waiting for jobs\n";
+  print STDERR "-- [$$] waiting for jobs\n";
   my $rv = -1;
   $taskid = -1;
-  my $debounced_wait = 1;
+  my $debounced_wait = 0.5;
   # First, request a task from the ventilator
   zmq_sendmsg( $ventilator, $service_name);
   do {
@@ -151,13 +151,13 @@ while (1) {
         print STDERR "-- [$$] zmq_msg_recv unreachable, exiting!\n";
         exit 0;
       }
-      print STDERR "-- [$$] Failed initial task msg_recv: $! |Retry in $debounced_wait s.\n";
+      print STDERR "-- [$$] failed initial task msg_recv: $! |Retry in $debounced_wait s.\n";
       sleep $debounced_wait; # retry in 2 seconds
     }
   } while ($rv == -1);
 
   $taskid = zmq_msg_data($taskid_msg);
-  print STDERR "-- [$$] Job found, receiving taskid #$taskid.\n";
+  print STDERR "-- [$$] receiving taskid #$taskid.\n";
 
   # Prepare a File for the input: we want a temp file, on a RAM disk (/dev/shm), without auto-remove
   my ($input_fh, $input_filepath) = tempfile($taskid."_inXXXX", SUFFIX => ".zip", TMPDIR=>1, UNLINK => 0);
@@ -165,7 +165,7 @@ while (1) {
   close $output_fh;
   binmode($input_fh);
   my $input_size = 0;
-  $debounced_wait = 1;
+  $debounced_wait = 0.5;
   while (1) {
     my $received = zmq_msg_recv($recv_msg, $ventilator, ZMQ_RCVMORE);
     if ($received <= -1) {
@@ -185,7 +185,7 @@ while (1) {
         print STDERR "-- [$$] zmq_msg_recv unreachable, exiting!\n";
         exit 0;
       }
-      print STDERR "-- [$$] Failed incremental download of task: $! |Retry in $debounced_wait s.\n";
+      print STDERR "-- [$$] failed incremental download of task: $! |Retry in $debounced_wait s.\n";
       sleep $debounced_wait; # retry in 2 seconds
       next;
     }
@@ -196,7 +196,7 @@ while (1) {
     if ($mem_allowance > 0) {
       print $input_fh $msg_data;
     } else {
-      print STDERR "-- [$$] Memory allowance exhausted, discarding packet.\n";
+      print STDERR "-- [$$] memory allowance exhausted, discarding packet.\n";
       $mem_guard = 1;
     }
 
@@ -209,7 +209,7 @@ while (1) {
   # there is a high chance the output won't fit the disk; this is conservative on the side of safety
   if ($mem_allowance < ($free_mem / 2)) {  $mem_guard = 1; }
   if ($mem_guard) {
-    print STDERR "-- [$$] Taskid #$taskid could not start conversion, mem_guard triggered.\n";
+    print STDERR "-- [$$] task #$taskid could not start conversion, mem_guard triggered.\n";
     # Clean up, then move on, we can't work on this task.
     unlink($input_filepath);
     unlink($output_filepath);
@@ -217,16 +217,16 @@ while (1) {
   }
 
   $work_counter++;
-  print STDERR "-- [$$] Taskid #$taskid received, converting...\n";
+  print STDERR "-- [$$] task #$taskid received, converting...\n";
   my $is_converted = 0;
   if ($input_size > 0) {
     convert($taskid, $input_filepath, $output_filepath);
     $is_converted = (-s $output_filepath);
-    print STDERR "-- [$$] Conversion #$work_counter complete.\n";
+    print STDERR "-- [$$] conversion #$work_counter complete.\n";
     # Let sink know a result is incoming
-    print STDERR "-- [$$] Responding to sink with $taskid result ($is_converted bytes)...\n";
+    print STDERR "-- [$$] responding to sink with $taskid result ($is_converted bytes)...\n";
     my $send_status = -1;
-    my $debounced_wait = 1;
+    my $debounced_wait = 0.5;
     while($send_status <= -1) {
       $send_status = zmq_sendmsg($sink, $service_name, ZMQ_SNDMORE);
       last if $send_status > -1;
@@ -247,14 +247,13 @@ while (1) {
         print STDERR "-- [$$] zmq_sendmsg to sink unreachable, exiting!\n";
         exit 0;
       }
-      print STDERR "-- [$$] Failed initial sink send: $! |Retry in $debounced_wait s.\n";
+      print STDERR "-- [$$] failed sink send: $! |Retry in $debounced_wait s.\n";
       sleep $debounced_wait; # retry in 2 seconds
     }
-    print STDERR "-- [$$] initial zmq_send to sink successful: $send_status\n";
     zmq_sendmsg($sink, $taskid, ZMQ_SNDMORE);
   } else {
     # No input, don't reply.
-    print STDERR "-- [$$] Taskid #$taskid received, but empty? skipping...\n";
+    print STDERR "-- [$$] task #$taskid received, but empty? skipping...\n";
   }
   if ($is_converted) { # Did the conversion succeed? Determine response payload if so
     open(my $converted_fh, "<", $output_filepath);
@@ -282,20 +281,20 @@ while (1) {
     close $converted_fh;
     # And the job is done.
     if (!$throttle_guard) {
-      print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) completed.\n";
+      print STDERR "-- [$$] task #$taskid (worker job $work_counter) completed.\n";
     } else {
-      print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) failed.\n";
+      print STDERR "-- [$$] task #$taskid (worker job $work_counter) failed.\n";
     }
   }
   elsif ($input_size > 0) { # Conversion failed, send an empty result body (if we had input)
     zmq_send($sink, '', 0, 0);
-    print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) failed.\n";
+    print STDERR "-- [$$] task #$taskid (worker job $work_counter) failed.\n";
   }
   # Time to remove our temp files
   unlink($input_filepath);
   unlink($output_filepath);
   if ($throttle_guard) {
-    print STDERR "-- [$$] CorTeX task #$taskid (worker job $work_counter) did not return data to sink, throttling (1 minute sleep).\n";
+    print STDERR "-- [$$] task #$taskid (worker job $work_counter) did not return data to sink, throttling (1 minute sleep).\n";
     sleep 60;
   }
 }
@@ -378,14 +377,14 @@ sub with_external_guard {
 
     # end prematurely if the memory_limit guard is violated
     if (memory_usage($parent) > $memory_limit) {
-      print STDERR "[".localtime()."] [$$] Memory guard triggered, PID $parent exceeded $memory_limit bytes RSS\n";
+      print STDERR "[".localtime()."] [$$] memory guard triggered, PID $parent exceeded $memory_limit bytes RSS\n";
       last;
     }
   }
 
   # Core timeout handler:
   # If we haven't been killed, there is a system call timeout => kill the parent
-  print STDERR "[".localtime()."] [$$] Killing $parent via external timeout\n";
+  print STDERR "[".localtime()."] [$$] killing $parent via external timeout\n";
   # Record the failure:
   # $job->fail('Fatal:latexml_worker:timeout [$identity] Worker timed out after $time seconds.');
   # We really need KILL here, the "gs" infinite loop from LaTeXML can't be killed in any other way
