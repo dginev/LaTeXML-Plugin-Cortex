@@ -23,7 +23,7 @@ use strict;
 use warnings;
 
 use ZMQ::LibZMQ3;
-use ZMQ::Constants qw(ZMQ_DEALER ZMQ_PUSH ZMQ_SNDMORE ZMQ_DONTWAIT ZMQ_RCVMORE ZMQ_IDENTITY);
+use ZMQ::Constants qw(ZMQ_DEALER ZMQ_PUSH ZMQ_SNDMORE ZMQ_DONTWAIT ZMQ_RCVMORE ZMQ_IDENTITY ZMQ_LINGER);
 use File::Temp qw(tempfile);
 use File::Find;
 use Archive::Zip qw(:CONSTANTS :ERROR_CODES);
@@ -74,17 +74,17 @@ my $zmq_context = zmq_ctx_new;
 # Connect to a task ventilator
 my $ventilator = zmq_socket( $zmq_context, ZMQ_DEALER );
 zmq_setsockopt($ventilator, ZMQ_IDENTITY, $identity);
-zmq_connect($ventilator, $ventilator_address);
+zmq_connect($ventilator, $ventilator_address) && die "-- [$$] Connect to ventilator failed!\n";
 
 # Connect to a task sink
 my $sink = zmq_socket( $zmq_context, ZMQ_PUSH );
-zmq_connect($sink, $sink_address);
+zmq_connect($sink, $sink_address) && die "-- [$$] Connect to ventilator failed!\n";
 
 # Work in perpetuity
 print STDERR "-- [$$] Worker $identity started\n";
+my $taskid = -1;
 my $taskid_msg = zmq_msg_init();
 my $recv_msg = zmq_msg_init();
-my $taskid = -1;
 
 while (1) {
   # Before each job, ensure we have space sanity in the scratch tmpdir we are using
@@ -127,32 +127,34 @@ while (1) {
 
   print STDERR "-- [$$] Waiting for jobs\n";
   my $rv = -1;
-  my $send_status = -1;
   $taskid = -1;
   my $debounced_wait = 1;
+  # First, request a task from the ventilator
+  zmq_sendmsg( $ventilator, $service_name);
   do {
-    # First, request a task from the ventilator
-    $send_status = zmq_sendmsg( $ventilator, $service_name);
-    print STDERR "-- [$$] Send status: $send_status \n";
-    if ($send_status == -1) {
-      print STDERR "-- [$$] Could not reach ventilator: $! | Retry in $debounced_wait s.\n";
-      # double the pause if still no presence, recheck each minute
-      if ($debounced_wait < 60) {
-        $debounced_wait = $debounced_wait * 2;
-      }
-      sleep $debounced_wait; # retry in 2 seconds
-      next;
-    }
     $rv = zmq_msg_recv($taskid_msg, $ventilator, ZMQ_DONTWAIT);
     if ($rv == -1) {
-      # double the pause if still no presence, recheck each minute
+      # double the pause if still no presence, bail if we get to a minute
       if ($debounced_wait < 60) {
         $debounced_wait = $debounced_wait * 2;
+      } else {
+        # We've waited for too long, this process seems defunct (or alternatively - unneeded)
+        # Terminating...
+        print STDERR "-- [$$] zmq_msg_recv unreachable, cleaning up...\n";
+        zmq_setsockopt($ventilator, ZMQ_LINGER, 0);
+        zmq_setsockopt($sink, ZMQ_LINGER, 0);
+        zmq_msg_close($recv_msg);
+        zmq_msg_close($taskid_msg);
+        zmq_close($ventilator);
+        zmq_close($sink);
+        zmq_term($zmq_context);
+        print STDERR "-- [$$] zmq_msg_recv unreachable, exiting!\n";
+        exit 0;
       }
       print STDERR "-- [$$] Failed initial task msg_recv: $! |Retry in $debounced_wait s.\n";
       sleep $debounced_wait; # retry in 2 seconds
     }
-  } while (($send_status == -1) || ($rv == -1));
+  } while ($rv == -1);
 
   $taskid = zmq_msg_data($taskid_msg);
   print STDERR "-- [$$] Job found, receiving taskid #$taskid.\n";
@@ -167,8 +169,21 @@ while (1) {
   while (1) {
     my $received = zmq_msg_recv($recv_msg, $ventilator, ZMQ_RCVMORE);
     if ($received <= -1) {
-      if ($debounced_wait < 60) {
+      if ($debounced_wait < 120) {
         $debounced_wait = $debounced_wait * 2;
+      } else {
+        # We've waited for too long, this process seems defunct (or alternatively - unneeded)
+        # Terminating...
+        print STDERR "-- [$$] zmq_msg_recv unreachable, cleaning up...\n";
+        zmq_setsockopt($ventilator, ZMQ_LINGER, 0);
+        zmq_setsockopt($sink, ZMQ_LINGER, 0);
+        zmq_msg_close($recv_msg);
+        zmq_msg_close($taskid_msg);
+        zmq_close($ventilator);
+        zmq_close($sink);
+        zmq_term($zmq_context);
+        print STDERR "-- [$$] zmq_msg_recv unreachable, exiting!\n";
+        exit 0;
       }
       print STDERR "-- [$$] Failed incremental download of task: $! |Retry in $debounced_wait s.\n";
       sleep $debounced_wait; # retry in 2 seconds
