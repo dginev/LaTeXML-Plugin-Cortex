@@ -14,6 +14,10 @@ cpanm git@github.com:brucemiller/LaTeXML.git &&
 cpanm git@github.com:dginev/LaTeXML-Plugin-Cortex.git
 ```
 
+# Runtime Reliability
+
+It is recommended to setup all client machines that are accessing the main server via the open internet to have at least two separate DNS servers setup, as well as to have **only an IPv4 interface** enabled, with IPv6 explicitly enabled. It is a current limitation of the central CorTeX server that no robust IPv6 interface is exposed.
+
 # Contribute to the arXMLiv build system
 
 All you need to do to contribute is do the installation and then run:
