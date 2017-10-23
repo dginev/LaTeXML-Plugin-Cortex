@@ -40,7 +40,6 @@ BEGIN {
    unless ($RealBin_safe && (-e $RealBin_safe.'/latexml_worker'));
 }
 
-
 # Set up basic parameters for this CorTeX service
 my $service_name = 'tex_to_html';
 my $message_size = 100000;
@@ -78,6 +77,7 @@ zmq_connect($ventilator, $ventilator_address) && die "-- [$$] connect to ventila
 
 # Connect to a task sink
 my $sink = zmq_socket( $zmq_context, ZMQ_PUSH );
+zmq_setsockopt($ventilator, ZMQ_IDENTITY, "sink-$identity");
 zmq_connect($sink, $sink_address) && die "-- [$$] connect to ventilator failed!\n";
 
 # Work in perpetuity
@@ -219,76 +219,53 @@ while (1) {
   $work_counter++;
   print STDERR "-- [$$] task #$taskid received, converting...\n";
   my $is_converted = 0;
-  if ($input_size > 0) {
+  if (!$input_size) {
+    # No input, won't reply.
+    print STDERR "-- [$$] task #$taskid received, but empty? skipping...\n";
+  } else {
     convert($taskid, $input_filepath, $output_filepath);
     $is_converted = (-s $output_filepath);
     print STDERR "-- [$$] conversion #$work_counter complete.\n";
     # Let sink know a result is incoming
     print STDERR "-- [$$] responding to sink with $taskid result ($is_converted bytes)...\n";
-    my $send_status = -1;
-    my $debounced_wait = 0.5;
-    while($send_status <= -1) {
-      $send_status = zmq_sendmsg($sink, $service_name, ZMQ_SNDMORE);
-      last if $send_status > -1;
-      # Request, failed, debounced retry
-      if ($debounced_wait < 60) {
-        $debounced_wait = $debounced_wait * 2;
-      } else {
-        # We've waited for too long, this process seems defunct (or alternatively - unneeded)
-        # Terminating...
-        print STDERR "-- [$$] zmq_sendmsg to sink unreachable, cleaning up...\n";
-        zmq_setsockopt($ventilator, ZMQ_LINGER, 0);
-        zmq_setsockopt($sink, ZMQ_LINGER, 0);
-        zmq_msg_close($recv_msg);
-        zmq_msg_close($taskid_msg);
-        zmq_close($ventilator);
-        zmq_close($sink);
-        zmq_term($zmq_context);
-        print STDERR "-- [$$] zmq_sendmsg to sink unreachable, exiting!\n";
-        exit 0;
-      }
-      print STDERR "-- [$$] failed sink send: $! |Retry in $debounced_wait s.\n";
-      sleep $debounced_wait; # retry in 2 seconds
-    }
+    zmq_sendmsg($sink, $service_name, ZMQ_SNDMORE);
     zmq_sendmsg($sink, $taskid, ZMQ_SNDMORE);
-  } else {
-    # No input, don't reply.
-    print STDERR "-- [$$] task #$taskid received, but empty? skipping...\n";
-  }
-  if ($is_converted) { # Did the conversion succeed? Determine response payload if so
-    open(my $converted_fh, "<", $output_filepath);
-    binmode($converted_fh);
-    # Stream converted data via zmq
-    #  Read file in $message_size blocks
-    my $data_buffer = '';
-    while (my $size = read($converted_fh, $data_buffer, $message_size)) {
-      # Disable throttle if we've sent back data
-      # Note: the throttle guards us from aberrant workers that may be e.g. out of disk space on the local machine
-      #       and hence may quickly fetch & fail, draining the job queue with misleading Fatal errors.
-      # Hence, ALWAYS when an output file fails to be written, even if due to genuine errors in the document markup,
-      #       add a one minute pause to the worker. We can not trust workers to be fully robust and error-free.
-      if ($size > 0) { $throttle_guard = 0; }
-      if ($size < $message_size) {
-        # Last message if under size quota, finalize
-        zmq_send($sink, $data_buffer, $size, 0);
-        last;
+  
+    if ($is_converted) { # Did the conversion succeed? Determine response payload if so
+      open(my $converted_fh, "<", $output_filepath);
+      binmode($converted_fh);
+      # Stream converted data via zmq
+      #  Read file in $message_size blocks
+      my $data_buffer = '';
+      while (my $size = read($converted_fh, $data_buffer, $message_size)) {
+        # Disable throttle if we've sent back data
+        # Note: the throttle guards us from aberrant workers that may be e.g. out of disk space on the local machine
+        #       and hence may quickly fetch & fail, draining the job queue with misleading Fatal errors.
+        # Hence, ALWAYS when an output file fails to be written, even if due to genuine errors in the document markup,
+        #       add a one minute pause to the worker. We can not trust workers to be fully robust and error-free.
+        if ($size > 0) { $throttle_guard = 0; }
+        if ($size < $message_size) {
+          # Last message if under size quota, finalize
+          zmq_send($sink, $data_buffer, $size, 0);
+          last;
+        } else {
+          # Message part, more will follow
+          zmq_send($sink,$data_buffer, $size, ZMQ_SNDMORE);
+          $data_buffer = '';
+        }
+      }
+      close $converted_fh;
+      # And the job is done.
+      if (!$throttle_guard) {
+        print STDERR "-- [$$] task #$taskid (worker job $work_counter) completed.\n";
       } else {
-        # Message part, more will follow
-        zmq_send($sink,$data_buffer, $size, ZMQ_SNDMORE);
-        $data_buffer = '';
+        print STDERR "-- [$$] task #$taskid (worker job $work_counter) failed.\n";
       }
     }
-    close $converted_fh;
-    # And the job is done.
-    if (!$throttle_guard) {
-      print STDERR "-- [$$] task #$taskid (worker job $work_counter) completed.\n";
-    } else {
+    else { # Conversion failed, send an empty result body (if we had input)
+      zmq_send($sink, '', 0, 0);
       print STDERR "-- [$$] task #$taskid (worker job $work_counter) failed.\n";
     }
-  }
-  elsif ($input_size > 0) { # Conversion failed, send an empty result body (if we had input)
-    zmq_send($sink, '', 0, 0);
-    print STDERR "-- [$$] task #$taskid (worker job $work_counter) failed.\n";
   }
   # Time to remove our temp files
   unlink($input_filepath);
@@ -310,10 +287,9 @@ sub convert {
   if ($pid) {
     # Simply wait for the child to terminate and return:
     return waitpid($pid, 0);
-  }
+  } else {
   ###
   # 2. CHILD
-  else {
     # Group leader, so that we can timeout the entire process group
     setpgrp(0, 0);
     # External timer to prevent problems in system calls
