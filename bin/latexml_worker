@@ -77,7 +77,7 @@ zmq_connect($ventilator, $ventilator_address) && die "-- [$$] connect to ventila
 
 # Connect to a task sink
 my $sink = zmq_socket( $zmq_context, ZMQ_PUSH );
-zmq_setsockopt($ventilator, ZMQ_IDENTITY, "sink-$identity");
+zmq_setsockopt($sink, ZMQ_IDENTITY, "sink-$identity");
 zmq_connect($sink, $sink_address) && die "-- [$$] connect to ventilator failed!\n";
 
 # Work in perpetuity
@@ -131,30 +131,30 @@ while (1) {
   my $debounced_wait = 0.5;
   # First, request a task from the ventilator
   zmq_sendmsg( $ventilator, $service_name);
-  do {
+  while ($rv == -1) {
     $rv = zmq_msg_recv($taskid_msg, $ventilator, ZMQ_DONTWAIT);
-    if ($rv == -1) {
-      # double the pause if still no presence, bail if we get to a minute
-      if ($debounced_wait < 60) {
-        $debounced_wait = $debounced_wait * 2;
-      } else {
-        # We've waited for too long, this process seems defunct (or alternatively - unneeded)
-        # Terminating...
-        print STDERR "-- [$$] zmq_msg_recv unreachable, cleaning up...\n";
-        zmq_setsockopt($ventilator, ZMQ_LINGER, 0);
-        zmq_setsockopt($sink, ZMQ_LINGER, 0);
-        zmq_msg_close($recv_msg);
-        zmq_msg_close($taskid_msg);
-        zmq_close($ventilator);
-        zmq_close($sink);
-        zmq_term($zmq_context);
-        print STDERR "-- [$$] zmq_msg_recv unreachable, exiting!\n";
-        exit 0;
-      }
-      print STDERR "-- [$$] failed initial task msg_recv: $! |Retry in $debounced_wait s.\n";
-      sleep $debounced_wait; # retry in 2 seconds
+    last if $rv > -1;
+    # Error-handling:
+    # double the pause if still no presence, bail if we get to a minute
+    if ($debounced_wait < 30) {
+      $debounced_wait = $debounced_wait * 2;
+    } else {
+      # We've waited for too long, this process seems defunct (or alternatively - unneeded)
+      # Terminating...
+      print STDERR "-- [$$] zmq_msg_recv unreachable, cleaning up...\n";
+      zmq_setsockopt($ventilator, ZMQ_LINGER, 0);
+      zmq_setsockopt($sink, ZMQ_LINGER, 0);
+      zmq_msg_close($recv_msg);
+      zmq_msg_close($taskid_msg);
+      zmq_close($ventilator);
+      zmq_close($sink);
+      zmq_term($zmq_context);
+      print STDERR "-- [$$] zmq_msg_recv unreachable, exiting...\n";
+      exit 0;
     }
-  } while ($rv == -1);
+    print STDERR "-- [$$] failed initial task msg_recv: $! |Retry in $debounced_wait s.\n";
+    sleep $debounced_wait; # retry in 2 seconds
+  }
 
   $taskid = zmq_msg_data($taskid_msg);
   print STDERR "-- [$$] receiving taskid #$taskid.\n";
@@ -168,28 +168,6 @@ while (1) {
   $debounced_wait = 0.5;
   while (1) {
     my $received = zmq_msg_recv($recv_msg, $ventilator, ZMQ_RCVMORE);
-    if ($received <= -1) {
-      if ($debounced_wait < 60) {
-        $debounced_wait = $debounced_wait * 2;
-      } else {
-        # We've waited for too long, this process seems defunct (or alternatively - unneeded)
-        # Terminating...
-        print STDERR "-- [$$] zmq_msg_recv unreachable, cleaning up...\n";
-        zmq_setsockopt($ventilator, ZMQ_LINGER, 0);
-        zmq_setsockopt($sink, ZMQ_LINGER, 0);
-        zmq_msg_close($recv_msg);
-        zmq_msg_close($taskid_msg);
-        zmq_close($ventilator);
-        zmq_close($sink);
-        zmq_term($zmq_context);
-        print STDERR "-- [$$] zmq_msg_recv unreachable, exiting!\n";
-        exit 0;
-      }
-      print STDERR "-- [$$] failed incremental download of task: $! |Retry in $debounced_wait s.\n";
-      sleep $debounced_wait; # retry in 2 seconds
-      next;
-    }
-
     $input_size += $received;
     $mem_allowance -= $received;
     my $msg_data = zmq_msg_data($recv_msg);
