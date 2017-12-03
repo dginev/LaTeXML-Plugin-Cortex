@@ -68,16 +68,16 @@ my $ventilator_address = "tcp://$cortex_ip:$cortex_ventilator_port";
 my $sink_address = "tcp://$cortex_ip:$cortex_sink_port";
 my $free_mem = 0;
 
-my $zmq_context = zmq_ctx_new;
+my $zmq_ventilator_context = zmq_ctx_new();
+my $zmq_sink_context = zmq_ctx_new();
 
 # Connect to a task ventilator
-my $ventilator = zmq_socket( $zmq_context, ZMQ_DEALER );
+my $ventilator = zmq_socket( $zmq_ventilator_context, ZMQ_DEALER );
 zmq_setsockopt($ventilator, ZMQ_IDENTITY, $identity);
 zmq_connect($ventilator, $ventilator_address) && die "-- [$$] connect to ventilator failed!\n";
 
 # Connect to a task sink
-my $sink = zmq_socket( $zmq_context, ZMQ_PUSH );
-zmq_setsockopt($sink, ZMQ_IDENTITY, "sink-$identity");
+my $sink = zmq_socket( $zmq_sink_context, ZMQ_PUSH );
 zmq_connect($sink, $sink_address) && die "-- [$$] connect to ventilator failed!\n";
 
 # Work in perpetuity
@@ -148,7 +148,8 @@ while (1) {
       zmq_msg_close($taskid_msg);
       zmq_close($ventilator);
       zmq_close($sink);
-      zmq_term($zmq_context);
+      zmq_term($zmq_ventilator_context);
+      zmq_term($zmq_sink_context);
       print STDERR "-- [$$] zmq_msg_recv unreachable, exiting...\n";
       exit 0;
     }
@@ -221,16 +222,16 @@ while (1) {
         #       and hence may quickly fetch & fail, draining the job queue with misleading Fatal errors.
         # Hence, ALWAYS when an output file fails to be written, even if due to genuine errors in the document markup,
         #       add a one minute pause to the worker. We can not trust workers to be fully robust and error-free.
-        if ($size > 0) { $throttle_guard = 0; }
+        $throttle_guard = 0;
+
         if ($size < $message_size) {
           # Last message if under size quota, finalize
           zmq_send($sink, $data_buffer, $size, 0);
-          last;
         } else {
           # Message part, more will follow
           zmq_send($sink,$data_buffer, $size, ZMQ_SNDMORE);
-          $data_buffer = '';
         }
+        $data_buffer = '';
       }
       close $converted_fh;
       # And the job is done.
@@ -241,8 +242,8 @@ while (1) {
       }
     }
     else { # Conversion failed, send an empty result body (if we had input)
-      zmq_send($sink, '', 0, 0);
       print STDERR "-- [$$] task #$taskid (worker job $work_counter) failed.\n";
+      zmq_sendmsg($sink,"");
     }
   }
   # Time to remove our temp files
