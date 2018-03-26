@@ -346,7 +346,7 @@ sub with_external_guard {
   kill -9, getpgrp($$);
   # Write a fail archive
   my $fail_archive = Archive::Zip->new();
-  my $log_text = "Fatal:cortex:dirty_timeout\nStatus:conversion:3";
+  my $log_text = "\nFatal:cortex:timeout External timeout guard was triggered, killing main conversion worker\nStatus:conversion:3\n";
   $fail_archive->addString("$log_text",$log_filepath);
   # And exit;
   exit ($fail_archive->writeToFileNamed($destination) == AZ_OK);
