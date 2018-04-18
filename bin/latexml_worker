@@ -153,7 +153,9 @@ while (1) {
       print STDERR "-- [$$] zmq_msg_recv unreachable, exiting...\n";
       exit 0;
     }
-    print STDERR "-- [$$] failed initial task msg_recv: $! |Retry in $debounced_wait s.\n";
+    if ($debounced_wait > 1) {
+      print STDERR "-- [$$] failed initial task msg_recv: $! |Retry in $debounced_wait s.\n";
+    }
     sleep $debounced_wait; # retry in 2 seconds
   }
 
@@ -326,12 +328,14 @@ sub with_external_guard {
   my $parent = $$;
   my $pid = fork();
   return $pid if $pid; # If parent finishes normally, it will kill $pid
+  my $terminate_reason = "timeout";
   while ($timeout_limit > 0) {
     sleep(min(10,$timeout_limit)); # Sleep for ten seconds
     $timeout_limit -= 10; # update remaining timeout limit
 
     # end prematurely if the memory_limit guard is violated
     if (memory_usage($parent) > $memory_limit) {
+      $terminate_reason = "memory";
       print STDERR "[".localtime()."] [$$] memory guard triggered, PID $parent exceeded $memory_limit bytes RSS\n";
       last;
     }
@@ -341,15 +345,20 @@ sub with_external_guard {
   # If we haven't been killed, there is a system call timeout => kill the parent
   print STDERR "[".localtime()."] [$$] killing $parent via external timeout\n";
   # Record the failure:
-  # $job->fail('Fatal:latexml_worker:timeout [$identity] Worker timed out after $time seconds.');
-  # We really need KILL here, the "gs" infinite loop from LaTeXML can't be killed in any other way
-  kill -9, getpgrp($$);
-  # Write a fail archive
   my $fail_archive = Archive::Zip->new();
-  my $log_text = "\nFatal:cortex:timeout External timeout guard was triggered, killing main conversion worker\nStatus:conversion:3\n";
+  my $log_text = "\nFatal:cortex:timeout External guard was triggered - timeout, killing main conversion worker\nStatus:conversion:3\n";
+  if ($terminate_reason eq 'memory') {
+    $log_text = "\nFatal:cortex:oom External guard was triggered - out of memory, killing main conversion worker\nStatus:conversion:3\n";
+  }
   $fail_archive->addString("$log_text",$log_filepath);
-  # And exit;
-  exit ($fail_archive->writeToFileNamed($destination) == AZ_OK);
+  my $write_status = $fail_archive->writeToFileNamed($destination);
+
+  # Terminate job.
+  # We really need KILL here, the "gs" infinite loop from LaTeXML can't be killed in any other way
+  kill -9, getpgrp($parent);
+
+  # And exit (if not killed already);
+  exit ($write_status == AZ_OK);
 }
 
 sub reset_external_timer {
