@@ -41,7 +41,6 @@ BEGIN {
 }
 
 # Set up basic parameters for this CorTeX service
-my $service_name = 'tex_to_html';
 my $message_size = 100000;
 my $work_counter = 0;
 my $identity = join('',map { (q(a)..q(z))[rand(26)] } 1 .. 20);
@@ -64,6 +63,8 @@ my $min_memory_needed = 104_857_600; # 100MB for now
 my $cortex_ip = shift || '212.201.49.37';
 my $cortex_ventilator_port = shift || '5555';
 my $cortex_sink_port = shift || '5556';
+my $cortex_service = shift || 'tex_to_html';
+
 my $ventilator_address = "tcp://$cortex_ip:$cortex_ventilator_port";
 my $sink_address = "tcp://$cortex_ip:$cortex_sink_port";
 my $free_mem = 0;
@@ -130,7 +131,7 @@ while (1) {
   $taskid = -1;
   my $debounced_wait = 0.5;
   # First, request a task from the ventilator
-  zmq_sendmsg( $ventilator, $service_name);
+  zmq_sendmsg( $ventilator, $cortex_service);
   while ($rv == -1) {
     $rv = zmq_msg_recv($taskid_msg, $ventilator, ZMQ_DONTWAIT);
     last if $rv > -1;
@@ -209,7 +210,7 @@ while (1) {
     print STDERR "-- [$$] conversion #$work_counter complete.\n";
     # Let sink know a result is incoming
     print STDERR "-- [$$] responding to sink with $taskid result ($is_converted bytes)...\n";
-    zmq_sendmsg($sink, $service_name, ZMQ_SNDMORE);
+    zmq_sendmsg($sink, $cortex_service, ZMQ_SNDMORE);
     zmq_sendmsg($sink, $taskid, ZMQ_SNDMORE);
   
     if ($is_converted) { # Did the conversion succeed? Determine response payload if so
@@ -283,12 +284,14 @@ sub convert {
     use LaTeXML;
     use LaTeXML::Common::Config;
     # Set up conversion parameters for LaTeXML
+    my $includestyles = ($cortex_service eq 'raw_tex_to_html');
     my $conversion_opts=LaTeXML::Common::Config->new(
       local=>1, whatsin=>'archive', whatsout=>'archive',
       format=>'html5', mathparse=>'RecDescent',
       post=>1, math_formats=>['pmml','cmml','mathtex'],
       preload=>['[ids]latexml.sty'], defaultresources=>0,
       inputencoding=>'iso-8859-1', timeout=>$timeout_limit,
+      includestyles=>$includestyles, # special case for now, we support raw interpretation as a fixed-name service
       log=>$log_filepath);
     $conversion_opts->check;
     my $converter = LaTeXML->get_converter($conversion_opts);

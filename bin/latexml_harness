@@ -31,8 +31,10 @@ BEGIN {
 use Unix::Processors;
 my $check_interval = 10;
 
-my $server = shift || '212.201.49.37';
-
+my $cortex_ip = shift || '131.188.48.209';
+my $cortex_ventilator_port = shift || '5555';
+my $cortex_sink_port = shift || '5556';
+my $cortex_service = shift || 'tex_to_html';
 # Set up global state
 my $Cache={ workers=> {} };
 $Cache->{processor_multiplier} = Unix::Processors->new->max_online;
@@ -78,7 +80,7 @@ sub spawn_workers {
       # Fork a job for each missing worker
       $pid = fork();
       if ($pid == 0) {
-        exec(catfile($RealBin_safe,"latexml_worker"),$server);
+        exec(catfile($RealBin_safe,"latexml_worker"), $cortex_ip, $cortex_ventilator_port, $cortex_sink_port, $cortex_service);
       } else {
         push @{$Cache->{workers}->{$s}}, $pid;
       }
