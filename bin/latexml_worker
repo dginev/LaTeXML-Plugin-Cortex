@@ -43,7 +43,7 @@ BEGIN {
 # Set up basic parameters for this CorTeX service
 my $message_size = 100000;
 my $work_counter = 0;
-my $identity = join('',map { (q(a)..q(z))[rand(26)] } 1 .. 20);
+my $identity = join('',map { (q(a)..q(z))[rand(26)] } 1 .. 100);
 my $memory_limit = 2 * 1024 * 1024 * 1024; # 2 GB max, we can't risk going out of control on large clusters
 my $timeout_limit = 1200; # If worker isn't done in 20 minutes - timeout
 my $m_timeout_limit = $timeout_limit+300; # We allow files to live on the ramdisk for 5 minutes longer than the timeout limit. Should be enough for data transfer to complete.
@@ -75,14 +75,15 @@ my $zmq_sink_context = zmq_ctx_new();
 # Connect to a task ventilator
 my $ventilator = zmq_socket( $zmq_ventilator_context, ZMQ_DEALER );
 zmq_setsockopt($ventilator, ZMQ_IDENTITY, $identity);
-zmq_connect($ventilator, $ventilator_address) && die "-- [$$] connect to ventilator failed!\n";
+(zmq_connect($ventilator, $ventilator_address) || $!) && (die "-- [$$] connect to ventilator failed! $!\n");
 
 # Connect to a task sink
 my $sink = zmq_socket( $zmq_sink_context, ZMQ_PUSH );
-zmq_connect($sink, $sink_address) && die "-- [$$] connect to ventilator failed!\n";
+zmq_setsockopt($sink, ZMQ_IDENTITY, $identity);
+(zmq_connect($sink, $sink_address) || $!) && (die "-- [$$] connect to ventilator failed! $!\n");
 
 # Work in perpetuity
-print STDERR "-- [$$] worker $identity started\n";
+print STDERR "-- [$$] worker ",substr($identity,0,20)," started\n";
 my $taskid = -1;
 my $taskid_msg = zmq_msg_init();
 my $recv_msg = zmq_msg_init();
@@ -130,8 +131,8 @@ while (1) {
   my $rv = -1;
   $taskid = -1;
   my $debounced_wait = 0.5;
-  # First, request a task from the ventilator
-  zmq_sendmsg( $ventilator, $cortex_service);
+  # First, request a task from the ventilator (note: this never returns a failure, even if socket is not bound)
+  zmq_sendmsg($ventilator, $cortex_service);
   while ($rv == -1) {
     $rv = zmq_msg_recv($taskid_msg, $ventilator, ZMQ_DONTWAIT);
     last if $rv > -1;
