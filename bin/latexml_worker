@@ -43,7 +43,7 @@ BEGIN {
 # Set up basic parameters for this CorTeX service
 my $message_size = 100000;
 my $work_counter = 0;
-my $identity = join('',map { (q(a)..q(z))[rand(26)] } 1 .. 100);
+my $identity = join('',map { (q(a)..q(z))[rand(26)] } 1 .. 20);
 my $memory_limit = 2 * 1024 * 1024 * 1024; # 2 GB max, we can't risk going out of control on large clusters
 my $timeout_limit = 1200; # If worker isn't done in 20 minutes - timeout
 my $m_timeout_limit = $timeout_limit+300; # We allow files to live on the ramdisk for 5 minutes longer than the timeout limit. Should be enough for data transfer to complete.
@@ -60,7 +60,7 @@ $ENV{TMPDIR}='/dev/shm';
 my $min_memory_needed = 104_857_600; # 100MB for now
 
 # Set up the cortex endpoints
-my $cortex_ip = shift || '212.201.49.37';
+my $cortex_ip = shift || '131.188.48.209';
 my $cortex_ventilator_port = shift || '5555';
 my $cortex_sink_port = shift || '5556';
 my $cortex_service = shift || 'tex_to_html';
@@ -75,12 +75,12 @@ my $zmq_sink_context = zmq_ctx_new();
 # Connect to a task ventilator
 my $ventilator = zmq_socket( $zmq_ventilator_context, ZMQ_DEALER );
 zmq_setsockopt($ventilator, ZMQ_IDENTITY, $identity);
-(zmq_connect($ventilator, $ventilator_address) || $!) && (die "-- [$$] connect to ventilator failed! $!\n");
+(zmq_connect($ventilator, $ventilator_address)) && (die "-- [$$] connect to ventilator failed! $!\n");
 
 # Connect to a task sink
 my $sink = zmq_socket( $zmq_sink_context, ZMQ_PUSH );
 zmq_setsockopt($sink, ZMQ_IDENTITY, $identity);
-(zmq_connect($sink, $sink_address) || $!) && (die "-- [$$] connect to ventilator failed! $!\n");
+(zmq_connect($sink, $sink_address)) && (die "-- [$$] connect to sink failed! $!\n");
 
 # Work in perpetuity
 print STDERR "-- [$$] worker ",substr($identity,0,20)," started\n";
