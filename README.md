@@ -1,7 +1,9 @@
 # LaTeXML-Plugin-Cortex
 A CorTeX worker for LaTeXML
 
-By default connects to the KWARC dispatcher, generating e.g. the [arXMLiv corpus](http://cortex.mathweb.org/corpus/arXMLiv/tex_to_html)
+By default connects to the KWARC dispatcher, generating e.g. the [arXMLiv corpus](http://cortex.mathweb.org/corpus/arXMLiv/tex_to_html).
+
+Intended for use with the latest `master` branch of LaTeXML.
 
 # Installation under Debian
 
