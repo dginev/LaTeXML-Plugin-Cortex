@@ -32,8 +32,8 @@ use Unix::Processors;
 my $check_interval = 10;
 
 my $cortex_ip = shift || '131.188.48.209';
-my $cortex_ventilator_port = shift || '5555';
-my $cortex_sink_port = shift || '5556';
+my $cortex_ventilator_port = shift || '51695';
+my $cortex_sink_port = shift || '51696';
 my $cortex_service = shift || 'tex_to_html';
 # Set up global state
 my $Cache={ workers=> {} };

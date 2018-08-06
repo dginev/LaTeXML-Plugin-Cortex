@@ -30,7 +30,7 @@ alias latexmlup="killall -9 perl; killall -9 latexml_worker;\
 alias latexmlupraw="killall -9 perl; killall -9 latexml_worker;\
                  cd $HOME/LaTeXML; git pull --rebase; cpanm --uninstall -f LaTeXML; cpanm .;\
                  cd $HOME/LaTeXML-Plugin-Cortex; git pull --rebase; cpanm .;\
-                 nohup latexml_harness 131.188.48.209 5555 5556 raw_tex_to_html 2>&1 > cortex.log &"
+                 nohup latexml_harness 131.188.48.209 51695 51696 raw_tex_to_html 2>&1 > cortex.log &"
 
 ```
 
