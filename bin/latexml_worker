@@ -23,22 +23,12 @@ use strict;
 use warnings;
 
 use ZMQ::LibZMQ3;
-use ZMQ::Constants qw(ZMQ_DEALER ZMQ_PUSH ZMQ_SNDMORE ZMQ_DONTWAIT ZMQ_RCVMORE ZMQ_IDENTITY ZMQ_LINGER);
+use ZMQ::Constants qw(ZMQ_DEALER ZMQ_PUSH ZMQ_SNDMORE ZMQ_RCVMORE ZMQ_IDENTITY ZMQ_LINGER);
 use File::Temp qw(tempfile);
 use File::Find;
 use Archive::Zip qw(:CONSTANTS :ERROR_CODES);
 use List::Util qw(min);
 use Proc::ProcessTable;
-
-# Obtain the path of this executable, for easy restart.
-use FindBin;
-my $RealBin_safe;
-BEGIN {
-  $FindBin::RealBin =~ /^([^\0]+)\z/; # Valid Unix path TODO: Windows, revisit regexp
-  $RealBin_safe = $1;
-  die 'Fatal:IO:tainted RealBin was tainted! Failing...'
-   unless ($RealBin_safe && (-e $RealBin_safe.'/latexml_worker'));
-}
 
 # Set up basic parameters for this CorTeX service
 my $message_size = 100000;
@@ -124,8 +114,6 @@ while (1) {
   # print STDERR "-- [$$] Current mem_allowance: $mem_allowance bytes\n";
   my $mem_guard = 0; # Guard for out-of-memory issues.
   my $throttle_guard = 1;
-  ### There is no clear reason why we would want to restart the process, in fact restarting it makes us lose the pid for latexml_harness, and causes an unwanted disconnect
-  #### restart_worker('job limit', $cortex_ip, $cortex_ventilator_port, $cortex_sink_port) if $work_counter > 100; # Respawn every 100 jobs, just to stay safe.
 
   print STDERR "-- [$$] waiting for jobs\n";
   my $rv = -1;
@@ -134,7 +122,7 @@ while (1) {
   # First, request a task from the ventilator (note: this never returns a failure, even if socket is not bound)
   zmq_sendmsg($ventilator, $cortex_service);
   while ($rv == -1) {
-    $rv = zmq_msg_recv($taskid_msg, $ventilator, ZMQ_DONTWAIT);
+    $rv = zmq_msg_recv($taskid_msg, $ventilator);
     last if $rv > -1;
     # Error-handling:
     # double the pause if still no presence, bail if we get to a minute
@@ -321,13 +309,6 @@ sub convert {
 }
 
 ### Utilities
-# Restart support for keeping the worker operational over long inactivity periods
-sub restart_worker {
-  my ($reason,$cortex_ip, $cortex_ventilator_port, $cortex_sink_port) = @_;
-  print STDERR "[".localtime()."] [$$] $reason reached, restarting\n";
-  exec("$RealBin_safe/latexml_worker",$cortex_ip, $cortex_ventilator_port, $cortex_sink_port)
-    or die("Fatal:latexml_worker:restart Worker $$ autoflush Failed!"); }
-
 sub with_external_guard {
   my ($timeout_limit, $memory_limit, $destination, $log_filepath) = @_;
   my $parent = $$;
