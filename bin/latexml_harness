@@ -30,14 +30,15 @@ BEGIN {
 
 use Unix::Processors;
 my $check_interval = 10;
-
 my $cortex_ip = shift || '131.188.48.209';
 my $cortex_ventilator_port = shift || '51695';
 my $cortex_sink_port = shift || '51696';
 my $cortex_service = shift || 'tex_to_html';
 # Set up global state
+my $hostname = `hostname -f`;
+chomp($hostname);
 my $Cache={ workers=> {} };
-$Cache->{processor_multiplier} = Unix::Processors->new->max_online;
+$Cache->{processor_multiplier} = Unix::Processors->new->max_online - 4;
 
 # Set up child control
 $SIG{'INT'} = \&stop_all; # Interrupt handler
@@ -78,11 +79,20 @@ sub spawn_workers {
     my $s = shift @services;
     for my $num(1..$needed->{$s}) {
       # Fork a job for each missing worker
+      my $identity = $hostname;
+      my $id = pick_id($s);
+      if ($id < 10) { # pad single digits
+        $identity .= ":0" . $id;
+      } else {
+        $identity .= ":" . $id;
+      }
+      
       $pid = fork();
       if ($pid == 0) {
-        exec(catfile($RealBin_safe,"latexml_worker"), $cortex_ip, $cortex_ventilator_port, $cortex_sink_port, $cortex_service);
+        exec(catfile($RealBin_safe,"latexml_worker"), $cortex_ip, $cortex_ventilator_port, $cortex_sink_port, $cortex_service, $identity);
       } else {
         push @{$Cache->{workers}->{$s}}, $pid;
+        set_id($s, $identity, $pid);
       }
     }
   }}
@@ -118,6 +128,35 @@ sub workers_needed {
   return $needed; }
 
 sub available_services { return ['tex_to_html']; }
+
+sub pick_id {
+  my ($service) = @_;
+  my $ids = $Cache->{ids}->{$service};
+  my $id_count = scalar(keys %$ids);
+  # First, keep picking new ids until we saturate CPUs
+  if ($id_count < $Cache->{processor_multiplier}) {
+    # there is room, add the next one.
+    $Cache->{ids}->{$service}->{$id_count + 1} = -1;
+    return $id_count + 1;
+  } else {
+    # Saturated, check for expired pids.
+    while (my($k, $v) = each %$ids) {
+      # is the pid still active?
+      my $exists = kill 0, $v;
+      if (!$exists) {
+        # this identity can be taken!
+        $Cache->{ids}->{$service}->{$k} = -1;
+        return $k;
+      }
+    }
+    print STDERR "ERROR: We are picking an id, but all $id_count are active?\n";
+    return -1;
+  }
+}
+sub set_id {
+  my ($service,$id, $pid);
+  $Cache->{ids}->{$service}->{$id} = $pid;
+}
 
 __END__
 
