@@ -37,8 +37,8 @@ my $cortex_service = shift || 'tex_to_html';
 # Set up global state
 my $hostname = `hostname -f`;
 chomp($hostname);
-my $Cache={ workers=> {} };
-$Cache->{processor_multiplier} = Unix::Processors->new->max_online - 4;
+my $Cache={ workers=> {}, ids => {} };
+$Cache->{processor_multiplier} = Unix::Processors->new->max_online;
 
 # Set up child control
 $SIG{'INT'} = \&stop_all; # Interrupt handler
@@ -50,12 +50,14 @@ $SIG{'CHLD'} = 'IGNORE';
 sub stop_all {
   stop_workers();
   exit 0; }
+  
 sub stop_workers {
   my $workers = $Cache->{workers};
   foreach my $service (keys %$workers) {
     stop_child($_) foreach @{$workers->{$service}};
   }
   $Cache->{workers} = {}; }
+
 sub stop_child {
   my ($pid) = @_;
   # Send a SIGTERM to the child job
@@ -92,7 +94,7 @@ sub spawn_workers {
         exec(catfile($RealBin_safe,"latexml_worker"), $cortex_ip, $cortex_ventilator_port, $cortex_sink_port, $cortex_service, $identity);
       } else {
         push @{$Cache->{workers}->{$s}}, $pid;
-        set_id($s, $identity, $pid);
+        set_id($s, $id, $pid);
       }
     }
   }}
@@ -128,9 +130,12 @@ sub workers_needed {
   return $needed; }
 
 sub available_services { return ['tex_to_html']; }
-
+use Data::Dumper;
 sub pick_id {
   my ($service) = @_;
+  if (!$Cache->{ids}->{$service}) {
+    $Cache->{ids}->{$service} = {};
+  }
   my $ids = $Cache->{ids}->{$service};
   my $id_count = scalar(keys %$ids);
   # First, keep picking new ids until we saturate CPUs
@@ -149,12 +154,12 @@ sub pick_id {
         return $k;
       }
     }
-    print STDERR "ERROR: We are picking an id, but all $id_count are active?\n";
+    print STDERR "ERROR: We are picking an id, but all $id_count are active?\n", Dumper($ids),"\n";
     return -1;
   }
 }
 sub set_id {
-  my ($service,$id, $pid);
+  my ($service,$id, $pid) = @_;
   $Cache->{ids}->{$service}->{$id} = $pid;
 }
 
