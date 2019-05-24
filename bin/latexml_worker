@@ -202,7 +202,7 @@ while (1) {
     zmq_sendmsg($sink, $identity, ZMQ_SNDMORE);
     zmq_sendmsg($sink, $cortex_service, ZMQ_SNDMORE);
     zmq_sendmsg($sink, $taskid, ZMQ_SNDMORE);
-  
+
     if ($is_converted) { # Did the conversion succeed? Determine response payload if so
       open(my $converted_fh, "<", $output_filepath);
       binmode($converted_fh);
@@ -279,7 +279,7 @@ sub convert {
       local=>1, whatsin=>'archive', whatsout=>'archive',
       format=>'html5', mathparse=>'RecDescent',
       post=>1, math_formats=>['pmml','cmml','mathlex','mathtex'],
-      preload=>['[ids]latexml.sty','llamapun.sty'], defaultresources=>0,
+      preload=>['[nobibtex,ids]latexml.sty','llamapun.sty'], defaultresources=>0,
       inputencoding=>'iso-8859-1', timeout=>$timeout_limit,
       includestyles=>$includestyles, # special case for now, we support raw interpretation as a fixed-name service
       log=>$log_filepath);
