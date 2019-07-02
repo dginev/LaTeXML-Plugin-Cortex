@@ -1,6 +1,6 @@
 #======================================================================
 # Makefile Maker for LaTeXML-Plugin-Cortex
-# d.ginev@jacobs-university.de
+# dginev@kwarc.info
 #======================================================================
 use ExtUtils::MakeMaker;
 use strict;
@@ -13,20 +13,20 @@ use FindBin;
 #======================================================================
 our @EXCLUSIONS=();
 our $MORE_MACROS = {};
-our $MORE_MAKERULES=''; 
+our $MORE_MAKERULES='';
 
 WriteMakefile(
   NAME => 'LaTeXML::Plugin::Cortex',
-  AUTHOR => 'Deyan Ginev <d.ginev@jacobs-university.de>',
+  AUTHOR => 'Deyan Ginev <dginev@kwarc.info>',
   ABSTRACT => "A CorTeX worker for LaTeXML",
-  VERSION => '0.4',
-  PREREQ_PM => { 
+  VERSION => '0.5',
+  PREREQ_PM => {
     'File::Temp' => 0,
     'File::Spec' => 0,
     'File::Find' => 0,
     'File::Path' => 0,
     'ZMQ::LibZMQ3' => '1.19',
-    'LaTeXML'=>'0.8.3',
+    'LaTeXML'=>'0.8.4',
     'List::Util' => 0,
     'Archive::Zip'=>0,
     'Unix::Processors'=>0,
