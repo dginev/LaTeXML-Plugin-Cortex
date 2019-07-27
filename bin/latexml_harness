@@ -39,6 +39,16 @@ my $hostname = `hostname -f`;
 chomp($hostname);
 my $Cache={ workers=> {}, ids => {} };
 $Cache->{processor_multiplier} = Unix::Processors->new->max_online;
+# Generally avoid over-committing, just in case there are some scheduling starvation issues
+if ($Cache->{processor_multiplier} > 1) {
+  if ($Cache->{processor_multiplier} > 4) {
+    if ($Cache->{processor_multiplier} > 16) {
+      $Cache->{processor_multiplier} -= 4; } # allow 4 free when over 16 available
+    else {
+      $Cache->{processor_multiplier} -= 2; } } # 2 free when 4-16 available
+  else {
+    $Cache->{processor_multiplier} -= 1; } } # 1 free when 2-4 available
+
 
 # Set up child control
 $SIG{'INT'} = \&stop_all; # Interrupt handler
@@ -50,7 +60,7 @@ $SIG{'CHLD'} = 'IGNORE';
 sub stop_all {
   stop_workers();
   exit 0; }
-  
+
 sub stop_workers {
   my $workers = $Cache->{workers};
   foreach my $service (keys %$workers) {
@@ -88,7 +98,7 @@ sub spawn_workers {
       } else {
         $identity .= ":" . $id;
       }
-      
+
       $pid = fork();
       if ($pid == 0) {
         exec(catfile($RealBin_safe,"latexml_worker"), $cortex_ip, $cortex_ventilator_port, $cortex_sink_port, $cortex_service, $identity);
@@ -112,7 +122,7 @@ sub workers_needed {
       $needed->{$service} = $processes_per_worker ; }}
 
   foreach my $service(keys %$cached_worker_pids) {
-    my $missing_processes = 0; 
+    my $missing_processes = 0;
     my $pid_list = $cached_worker_pids->{$service};
     my $verified_list = [];
     foreach my $pid (@$pid_list) {
@@ -165,7 +175,7 @@ sub set_id {
 
 __END__
 
-=pod 
+=pod
 
 =head1 NAME
 
@@ -198,7 +208,7 @@ Deyan Ginev <d.ginev@jacobs-university.de>
 
 =head1 COPYRIGHT
 
- Research software, produced as part of work done by 
+ Research software, produced as part of work done by
  the KWARC group at Jacobs University Bremen.
  Released under the GNU Public License
 
