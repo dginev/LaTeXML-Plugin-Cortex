@@ -132,8 +132,8 @@ while (1) {
       # We've waited for too long, this process seems defunct (or alternatively - unneeded)
       # Terminating...
       print STDERR "-- [$$] zmq_msg_recv unreachable, cleaning up...\n";
-      zmq_setsockopt($ventilator, ZMQ_LINGER, 0);
-      zmq_setsockopt($sink, ZMQ_LINGER, 0);
+      zmq_setsockopt($ventilator, ZMQ_LINGER, 5000);
+      zmq_setsockopt($sink, ZMQ_LINGER, 5000);
       zmq_msg_close($recv_msg);
       zmq_msg_close($taskid_msg);
       zmq_close($ventilator);
@@ -274,12 +274,13 @@ sub convert {
     use LaTeXML;
     use LaTeXML::Common::Config;
     # Set up conversion parameters for LaTeXML
+    # Requires latexml 0.8.4, commit a8ed15eaa62d0a384e7d1d651ed460f22b7cea94, or newer
     my $includestyles = ($cortex_service eq 'raw_tex_to_html');
     my $conversion_opts=LaTeXML::Common::Config->new(
       local=>1, whatsin=>'archive', whatsout=>'archive',
       format=>'html5', mathparse=>'RecDescent',
-      post=>1, math_formats=>['pmml','cmml','mathlex','mathtex'],
-      preload=>['[nobibtex,ids]latexml.sty','llamapun.sty'], defaultresources=>0,
+      post=>1, math_formats=>['pmml','cmml','mathtex'],
+      preload=>['[nobibtex,ids,mathlexemes]latexml.sty'], defaultresources=>0,
       inputencoding=>'iso-8859-1', timeout=>$timeout_limit,
       includestyles=>$includestyles, # special case for now, we support raw interpretation as a fixed-name service
       log=>$log_filepath);
