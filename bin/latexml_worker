@@ -275,14 +275,19 @@ sub convert {
     use LaTeXML::Common::Config;
     # Set up conversion parameters for LaTeXML
     # Requires latexml 0.8.4, commit a8ed15eaa62d0a384e7d1d651ed460f22b7cea94, or newer
-    my $includestyles = ($cortex_service eq 'raw_tex_to_html');
+    my @latexml_sty_opts = qw(nobibtex ids mathlexemes);
+    if ($cortex_service eq 'raw_tex_to_html') {
+      push @latexml_sty_opts, "rawstyles";
+    } elsif ($cortex_service eq 'local_tex_to_html') {
+      push @latexml_sty_opts, "localrawstyles";
+    }
+    my $latexml_sty_opts = join(",", @latexml_sty_opts);
     my $conversion_opts=LaTeXML::Common::Config->new(
       local=>1, whatsin=>'archive', whatsout=>'archive',
       format=>'html5', mathparse=>'RecDescent',
       post=>1, math_formats=>['pmml','cmml','mathtex'],
-      preload=>['[nobibtex,ids,mathlexemes]latexml.sty'], defaultresources=>0,
+      preload=>["[$latexml_sty_opts]latexml.sty"], defaultresources=>0,
       inputencoding=>'iso-8859-1', timeout=>$timeout_limit,
-      includestyles=>$includestyles, # special case for now, we support raw interpretation as a fixed-name service
       log=>$log_filepath);
     $conversion_opts->check;
     my $converter = LaTeXML->get_converter($conversion_opts);
