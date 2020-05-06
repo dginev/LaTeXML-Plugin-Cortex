@@ -278,7 +278,7 @@ sub convert {
     my @latexml_sty_opts = qw(nobibtex ids mathlexemes);
     if ($cortex_service eq 'raw_tex_to_html') {
       push @latexml_sty_opts, "rawstyles";
-    } elsif ($cortex_service eq 'local_tex_to_html') {
+    } else { # Experiment: always enable localrawstyles, in an attempt to improve custom arXiv dependencies
       push @latexml_sty_opts, "localrawstyles";
     }
     my $latexml_sty_opts = join(",", @latexml_sty_opts);
