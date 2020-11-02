@@ -32,9 +32,6 @@ WriteMakefile(
     'Unix::Processors'=>0,
     'Proc::ProcessTable'=>0
   },
-  TEST_REQUIRES => {
-    'Perl::Tidy' => '20180220'
-  },
   EXE_FILES => ['bin/latexml_worker', 'bin/latexml_harness'],
   (eval { ExtUtils::MakeMaker->VERSION(6.46) } ? (META_MERGE => {
     'meta-spec' => { version => 2 },
