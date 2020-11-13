@@ -11,10 +11,10 @@
 ##
 ##
 ## 1. threadripper 1950x
-## docker run --cpus="16.0" --memory="32g" --shm-size="16g" latexml-plugin-cortex:1.0 latexml_harness 131.188.48.209
+## docker run --cpus="16.0" --memory="32g" --shm-size="16g" --hostname=$(hostname) latexml-plugin-cortex:1.0 latexml_harness 131.188.48.209
 ##
 ## 2. monster config style:
-## docker run --cpus="72.0" --memory="96g" --shm-size="64g" latexml-plugin-cortex:1.0 latexml_harness 131.188.48.209
+## docker run --cpus="72.0" --memory="96g" --shm-size="64g" --hostname=$(hostname) latexml-plugin-cortex:1.0 latexml_harness 131.188.48.209
 
 FROM ubuntu:20.04
 ENV TZ=America/New_York
