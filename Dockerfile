@@ -9,9 +9,9 @@
 ##
 ## run example via:
 ##
-## docker run --cpus="16.0" --memory="32g" --shm-size="16g" latexml-plugin-cortex:1.0 latexml_harness 127.0.0.1
+## docker run --cpus="16.0" --memory="32g" --shm-size="16g" latexml-plugin-cortex:1.0 latexml_harness 131.188.48.209
 
-FROM ubuntu:20.04
+FROM ubuntu:18.04
 ENV TZ=America/New_York
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
@@ -55,6 +55,7 @@ RUN mkdir -p /opt/latexml
 WORKDIR /opt/latexml
 RUN cpanm --verbose --skip-installed https://github.com/brucemiller/LaTeXML/tarball/master
 
+# libunix-processors-perl \ # only in 20.04 and newer
 # cortex worker dependencies
 RUN set -ex && apt-get update -qq && apt-get install -qy \
   libarchive-zip-perl \
@@ -68,7 +69,6 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
   libtest-sharedfork-perl \
   libtest-tcp-perl \
   libtest-weaken-perl \
-  libunix-processors-perl \
   libzmq3-dev
 
 # Install LaTeXML-Plugin-Cortex's master branch via cpanminus
