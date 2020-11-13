@@ -16,7 +16,7 @@
 ## 2. monster config style:
 ## docker run --cpus="72.0" --memory="96g" --shm-size="64g" latexml-plugin-cortex:1.0 latexml_harness 131.188.48.209
 
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 ENV TZ=America/New_York
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
@@ -60,7 +60,6 @@ RUN mkdir -p /opt/latexml
 WORKDIR /opt/latexml
 RUN cpanm --notest --verbose --skip-installed https://github.com/brucemiller/LaTeXML/tarball/master
 
-# libunix-processors-perl \ # only in 20.04 and newer
 # cortex worker dependencies
 RUN set -ex && apt-get update -qq && apt-get install -qy \
   libarchive-zip-perl \
@@ -74,6 +73,7 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
   libtest-sharedfork-perl \
   libtest-tcp-perl \
   libtest-weaken-perl \
+  libunix-processors-perl \
   libzmq3-dev
 
 # Enable imagemagick policy permissions for work with arXiv PDF/EPS files
