@@ -5,16 +5,16 @@
 ##
 ## build via:
 ##
-## docker build --tag latexml-plugin-cortex:1.1 .
+## docker build --tag latexml-plugin-cortex:1.2 .
 ##
 ## run example via:
 ##
 ##
 ## 1. threadripper 1950x
-## docker run --cpus="24.0" --memory="48g" --shm-size="32g" --hostname=$(hostname) latexml-plugin-cortex:1.1 latexml_harness 131.188.48.209
+## docker run --cpus="24.0" --memory="48g" --shm-size="32g" --hostname=$(hostname) latexml-plugin-cortex:1.2 latexml_harness 131.188.48.209
 ##
 ## 2. monster config style:
-## docker run --cpus="72.0" --memory="96g" --shm-size="64g" --hostname=$(hostname) latexml-plugin-cortex:1.1 latexml_harness 131.188.48.209
+## docker run --cpus="72.0" --memory="96g" --shm-size="64g" --hostname=$(hostname) latexml-plugin-cortex:1.2 latexml_harness 131.188.48.209
 
 FROM ubuntu:20.04
 ENV TZ=America/New_York
@@ -58,7 +58,7 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
 RUN mkdir -p /opt/latexml
 WORKDIR /opt/latexml
-ENV LATEXML_COMMIT=376b6a03487a37a5fb9f0281e0d0770a71260908
+ENV LATEXML_COMMIT=4186d763cf8fc82d31a5d59701b63bced1b0bf29
 RUN cpanm --notest --verbose --skip-installed https://github.com/brucemiller/LaTeXML/tarball/$LATEXML_COMMIT
 
 # cortex worker dependencies
