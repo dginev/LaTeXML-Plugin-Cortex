@@ -58,7 +58,7 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
 RUN mkdir -p /opt/latexml
 WORKDIR /opt/latexml
-ENV LATEXML_COMMIT=999aa3cf790c4d1fcce7bf73913922ae51c0975d
+ENV LATEXML_COMMIT=a9f0c8f488fde25ef03ad659206ddf99028396fd
 RUN cpanm --notest --verbose --skip-installed https://github.com/brucemiller/LaTeXML/tarball/$LATEXML_COMMIT
 
 # cortex worker dependencies
