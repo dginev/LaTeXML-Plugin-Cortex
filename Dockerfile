@@ -5,7 +5,7 @@
 ##
 ## build via:
 ##
-## docker build --tag latexml-plugin-cortex:1.2 .
+## docker build --tag latexml-plugin-cortex:1.3 .
 ##
 ## run example via:
 ##
@@ -79,6 +79,13 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
 
 # Enable imagemagick policy permissions for work with arXiv PDF/EPS files
 RUN perl -pi.bak -e 's/rights="none" pattern="([XE]?PS\d?|PDF)"/rights="read|write" pattern="$1"/g' /etc/ImageMagick-6/policy.xml
+# Extend imagemagick resource allowance to be able to create with high-quality images
+RUN perl -pi.bak -e 's/policy domain="resource" name="width" value="(\w+)"/policy domain="resource" name="width" value="20KP"/' /etc/ImageMagick-6/policy.xml
+RUN perl -pi.bak -e 's/policy domain="resource" name="height" value="(\w+)"/policy domain="resource" name="height" value="20KP"/' /etc/ImageMagick-6/policy.xml
+RUN perl -pi.bak -e 's/policy domain="resource" name="area" value="(\w+)"/policy domain="resource" name="area" value="512MB"/' /etc/ImageMagick-6/policy.xml
+RUN perl -pi.bak -e 's/policy domain="resource" name="disk" value="(\w+)"/policy domain="resource" name="disk" value="4GiB"/' /etc/ImageMagick-6/policy.xml
+RUN perl -pi.bak -e 's/policy domain="resource" name="memory" value="(\w+)"/policy domain="resource" name="memory" value="512MB"/' /etc/ImageMagick-6/policy.xml
+RUN perl -pi.bak -e 's/policy domain="resource" name="map" value="(\w+)"/policy domain="resource" name="map" value="512MB"/' /etc/ImageMagick-6/policy.xml
 
 # Install LaTeXML-Plugin-Cortex's master branch via cpanminus
 RUN mkdir -p /opt/latexml_plugin_cortex
