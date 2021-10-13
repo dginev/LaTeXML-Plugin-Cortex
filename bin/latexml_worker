@@ -277,7 +277,7 @@ sub convert {
     use LaTeXML::Common::Config;
     # Set up conversion parameters for LaTeXML
     # Requires latexml 0.8.4, commit a8ed15eaa62d0a384e7d1d651ed460f22b7cea94, or newer
-    my @latexml_sty_opts = qw(nobibtex ids mathlexemes);
+    my @latexml_sty_opts = qw(nobibtex ids mathlexemes dpi=180);
     if ($cortex_service eq 'raw_tex_to_html') {
       push @latexml_sty_opts, "rawstyles";
     } else { # Experiment: always enable localrawstyles, in an attempt to improve custom arXiv dependencies
