@@ -362,13 +362,16 @@ sub reset_external_timer {
 }
 
 sub memory_usage {
-  my $pid = shift || $$;
-  my $t = Proc::ProcessTable->new();
-  foreach my $got ( @{$t->table} ) {
-    next if not $got->pid eq $pid;
-    return $got->rss;
-  }
-  return 0; # if not found
-}
+  my $pid = int(shift || $$);
+  my $used = 0; # if not found
+  eval {
+    my $t = Proc::ProcessTable->new();
+    foreach my $got ( @{$t->table} ) {
+      next if int($got->pid) != $pid;
+      $used = $got->rss;
+      last;
+    }
+  };
+  return $used; }
 
 1;
