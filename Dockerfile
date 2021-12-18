@@ -5,7 +5,7 @@
 ##
 ## build via:
 ##
-## docker build --tag latexml-plugin-cortex:1.3 .
+## docker build --tag latexml-plugin-cortex:1.5 .
 ##
 ## run example via:
 ##
@@ -58,7 +58,7 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
 RUN mkdir -p /opt/latexml
 WORKDIR /opt/latexml
-ENV LATEXML_COMMIT=c9a30a3c1a58458bc667877070364b999d57a01f
+ENV LATEXML_COMMIT=494a4580ffcda2e8c2d95961bf2050f250f4d9e7
 RUN cpanm --notest --verbose --skip-installed https://github.com/brucemiller/LaTeXML/tarball/$LATEXML_COMMIT
 
 # cortex worker dependencies
