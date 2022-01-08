@@ -26,6 +26,7 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
   texlive-fonts-extra \
   texlive-lang-all \
   texlive-latex-extra \
+  texlive-bibtex-extra \
   texlive-science
 
 # latexml dependencies
