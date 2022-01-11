@@ -27,7 +27,10 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
   texlive-lang-all \
   texlive-latex-extra \
   texlive-bibtex-extra \
-  texlive-science
+  texlive-science \
+  texlive-pictures \
+  texlive-pstricks \
+  texlive-publishers
 
 # latexml dependencies
 RUN set -ex && apt-get update -qq && apt-get install -qy \
@@ -59,7 +62,7 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
 RUN mkdir -p /opt/latexml
 WORKDIR /opt/latexml
-ENV LATEXML_COMMIT=5d792128cb5b756a69dd3d18f42941a9ec1123bb
+ENV LATEXML_COMMIT=87f8706425c113d6b8557f24980b46557baf954d
 RUN cpanm --notest --verbose --skip-installed https://github.com/brucemiller/LaTeXML/tarball/$LATEXML_COMMIT
 
 # cortex worker dependencies
