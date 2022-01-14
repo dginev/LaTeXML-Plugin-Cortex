@@ -36,7 +36,7 @@ my $work_counter = 0;
 # 5 GB max, we can risk going a little out of control on large clusters
 # (PhD theses and books allocate some RAM)
 my $memory_limit = 5 * 1024 * 1024 * 1024; 
-my $timeout_limit = 1800; # If worker isn't done in 30 minutes - timeout
+my $timeout_limit = 2700; # If worker isn't done in 45 minutes - timeout
 my $m_timeout_limit = $timeout_limit+300; # We allow files to live on the ramdisk for 5 minutes longer than the timeout limit. Should be enough for data transfer to complete.
 # We also provide defaults for certain defensive environmental variables, if not yet set
 #  in particular, for LaTeXML's ImageMagick conversion jobs.
