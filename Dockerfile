@@ -61,14 +61,14 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
 # Collect the extended arxmliv-bindings files
 RUN mkdir -p /opt/arxmliv-bindings
 WORKDIR /opt/arxmliv-bindings
-RUN git clone -–depth 1 https://github.com/dginev/arxmliv-bindings
+RUN git clone --depth 1 https://github.com/dginev/arxmliv-bindings
 ENV ARXMLIV_BINDINGS_PATH=/opt/arxmliv-bindings
 
 # Install LaTeXML's master branch via cpanminus
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
 RUN mkdir -p /opt/latexml
 WORKDIR /opt/latexml
-ENV LATEXML_COMMIT=87f8706425c113d6b8557f24980b46557baf954d
+ENV LATEXML_COMMIT=d731ec63756e0bd52110d08b541892520f8429e7
 RUN cpanm --notest --verbose --skip-installed https://github.com/brucemiller/LaTeXML/tarball/$LATEXML_COMMIT
 
 # cortex worker dependencies
