@@ -58,6 +58,12 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
   make \
   perl-doc
 
+# Collect the extended arxmliv-bindings files
+RUN mkdir -p /opt/arxmliv-bindings
+WORKDIR /opt/arxmliv-bindings
+RUN git clone -–depth 1 https://github.com/dginev/arxmliv-bindings
+ENV ARXMLIV_BINDINGS_PATH=/opt/arxmliv-bindings
+
 # Install LaTeXML's master branch via cpanminus
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
 RUN mkdir -p /opt/latexml
