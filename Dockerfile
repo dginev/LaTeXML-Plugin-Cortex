@@ -59,10 +59,12 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
   perl-doc
 
 # Collect the extended arxmliv-bindings files
-RUN mkdir -p /opt/arxmliv-bindings
-WORKDIR /opt/arxmliv-bindings
-RUN git clone --depth 1 https://github.com/dginev/arxmliv-bindings
 ENV ARXMLIV_BINDINGS_PATH=/opt/arxmliv-bindings
+RUN mkdir -p $ARXMLIV_BINDINGS_PATH
+RUN git clone https://github.com/dginev/arxmliv-bindings $ARXMLIV_BINDINGS_PATH
+WORKDIR $ARXMLIV_BINDINGS_PATH
+ENV ARXMLIV_BINDINGS_COMMIT=8322bc9f76be766ab23ada09394114ea0a2e9e11
+RUN git reset --hard $ARXMLIV_BINDINGS_COMMIT
 
 # Install LaTeXML's master branch via cpanminus
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
