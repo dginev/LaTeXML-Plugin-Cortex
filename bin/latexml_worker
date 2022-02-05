@@ -290,7 +290,9 @@ sub convert {
       post=>1, math_formats=>['pmml','cmml','mathtex'],
       paths => ['.',$ENV{ARXMLIV_BINDINGS_PATH}||()],
       preload=>["[$latexml_sty_opts]latexml.sty"], defaultresources=>0,
-      inputencoding=>'iso-8859-1', timeout=>$timeout_limit,
+      # modern documents are mostly unicode, which ones will we lose?
+      # inputencoding=>'iso-8859-1',
+      timeout=>$timeout_limit,
       log=>$log_filepath);
     $conversion_opts->check;
     my $converter = LaTeXML->get_converter($conversion_opts);
