@@ -64,14 +64,14 @@ ENV ARXMLIV_BINDINGS_PATH=$ARXMLIV_BINDINGS_BASE/bindings
 RUN rm -rf $ARXMLIV_BINDINGS_BASE ; mkdir -p $ARXMLIV_BINDINGS_BASE
 RUN git clone https://github.com/dginev/arxmliv-bindings $ARXMLIV_BINDINGS_BASE
 WORKDIR $ARXMLIV_BINDINGS_BASE
-ENV ARXMLIV_BINDINGS_COMMIT=c5e99778df3f2a455bc0cdd778d788abc306f9e1
+ENV ARXMLIV_BINDINGS_COMMIT=c1c7a17f5576bc795776e2e00b9cd0348b643ac2
 RUN git reset --hard $ARXMLIV_BINDINGS_COMMIT
 
 # Install LaTeXML's master branch via cpanminus
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
 RUN mkdir -p /opt/latexml
 WORKDIR /opt/latexml
-ENV LATEXML_COMMIT=3a8085d75807cc8c430ff29dd35dc95853db67a1
+ENV LATEXML_COMMIT=9ae705d9c732e875a6ec1888e573ae7ae82c4534
 RUN cpanm --notest --verbose --skip-installed https://github.com/brucemiller/LaTeXML/tarball/$LATEXML_COMMIT
 
 # cortex worker dependencies
