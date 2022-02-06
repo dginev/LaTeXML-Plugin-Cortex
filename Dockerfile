@@ -71,7 +71,7 @@ RUN git reset --hard $ARXMLIV_BINDINGS_COMMIT
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
 RUN mkdir -p /opt/latexml
 WORKDIR /opt/latexml
-ENV LATEXML_COMMIT=9ae705d9c732e875a6ec1888e573ae7ae82c4534
+ENV LATEXML_COMMIT=8e4511e341cfc2e849d419f0fb3bc9fe5ce0fad8
 RUN cpanm --notest --verbose --skip-installed https://github.com/brucemiller/LaTeXML/tarball/$LATEXML_COMMIT
 
 # cortex worker dependencies
