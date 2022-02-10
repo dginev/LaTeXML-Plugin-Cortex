@@ -59,7 +59,7 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
   perl-doc
 
 # Collect the extended arxmliv-bindings files
-ENV ARXMLIV_BINDINGS_COMMIT=c1c7a17f5576bc795776e2e00b9cd0348b643ac2
+ENV ARXMLIV_BINDINGS_COMMIT=a564e4c7b7412ad96d181403acc4389ab6cfa8e3
 ENV ARXMLIV_BINDINGS_BASE=/opt/arxmliv-bindings
 ENV ARXMLIV_BINDINGS_PATH=$ARXMLIV_BINDINGS_BASE/bindings
 RUN rm -rf $ARXMLIV_BINDINGS_BASE ; mkdir -p $ARXMLIV_BINDINGS_BASE
@@ -71,7 +71,7 @@ RUN git reset --hard $ARXMLIV_BINDINGS_COMMIT
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
 RUN mkdir -p /opt/latexml
 WORKDIR /opt/latexml
-ENV LATEXML_COMMIT=8e4511e341cfc2e849d419f0fb3bc9fe5ce0fad8
+ENV LATEXML_COMMIT=9f8dd63c8c251057412b98328ea478d26851c874
 RUN cpanm --notest --verbose --skip-installed https://github.com/brucemiller/LaTeXML/tarball/$LATEXML_COMMIT
 
 # cortex worker dependencies
