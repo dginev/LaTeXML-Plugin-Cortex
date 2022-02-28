@@ -5,7 +5,7 @@
 ##
 ## build via:
 ##
-## docker build --tag latexml-plugin-cortex:1.5 .
+## docker build --tag latexml-plugin-cortex:1.6 .
 ##
 ## run example via:
 ##
@@ -16,7 +16,7 @@
 ## 2. monster config style:
 ## docker run --cpus="72.0" --memory="96g" --shm-size="64g" --hostname=$(hostname) latexml-plugin-cortex:1.2 latexml_harness 131.188.48.209
 
-FROM ubuntu:21.10
+FROM ubuntu:22.04
 ENV TZ=America/New_York
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
@@ -59,7 +59,7 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
   perl-doc
 
 # Collect the extended arxmliv-bindings files
-ENV ARXMLIV_BINDINGS_COMMIT=a564e4c7b7412ad96d181403acc4389ab6cfa8e3
+ENV ARXMLIV_BINDINGS_COMMIT=974ac018fb22ea8e38c80d98a71ba5269d2fea18
 ENV ARXMLIV_BINDINGS_BASE=/opt/arxmliv-bindings
 ENV ARXMLIV_BINDINGS_PATH=$ARXMLIV_BINDINGS_BASE/bindings
 RUN rm -rf $ARXMLIV_BINDINGS_BASE ; mkdir -p $ARXMLIV_BINDINGS_BASE
@@ -67,11 +67,11 @@ RUN git clone https://github.com/dginev/arxmliv-bindings $ARXMLIV_BINDINGS_BASE
 WORKDIR $ARXMLIV_BINDINGS_BASE
 RUN git reset --hard $ARXMLIV_BINDINGS_COMMIT
 
-# Install LaTeXML's master branch via cpanminus
+# Install LaTeXML, at a fixed commit, via cpanminus
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
 RUN mkdir -p /opt/latexml
 WORKDIR /opt/latexml
-ENV LATEXML_COMMIT=9f8dd63c8c251057412b98328ea478d26851c874
+ENV LATEXML_COMMIT=1113f0d0f489c3f6a22f0df04350f76e8d591648
 RUN cpanm --notest --verbose --skip-installed https://github.com/brucemiller/LaTeXML/tarball/$LATEXML_COMMIT
 
 # cortex worker dependencies
@@ -100,7 +100,7 @@ RUN perl -pi.bak -e 's/policy domain="resource" name="disk" value="(\w+)"/policy
 RUN perl -pi.bak -e 's/policy domain="resource" name="memory" value="(\w+)"/policy domain="resource" name="memory" value="2GiB"/' /etc/ImageMagick-6/policy.xml
 RUN perl -pi.bak -e 's/policy domain="resource" name="map" value="(\w+)"/policy domain="resource" name="map" value="2GiB"/' /etc/ImageMagick-6/policy.xml
 
-# Install LaTeXML-Plugin-Cortex's master branch via cpanminus
+# Install LaTeXML-Plugin-Cortex, at a fixed commit, via cpanminus
 RUN mkdir -p /opt/latexml_plugin_cortex
 WORKDIR /opt/latexml_plugin_cortex
 ENV CORTEX_WORKER_COMMIT=e11b377426f0ec93793ee4e6dc2c2c5dbc7922df
