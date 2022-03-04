@@ -35,7 +35,6 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
 # latexml dependencies
 RUN set -ex && apt-get update -qq && apt-get install -qy \
   build-essential \
-  cpanminus \
   git \
   imagemagick \
   libarchive-zip-perl \
@@ -55,8 +54,14 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
   libxml2 libxml2-dev \
   libxslt1-dev \
   libxslt1.1 \
+  liblocal-lib-perl \
   make \
-  perl-doc
+  perl-doc \  
+  cpanminus 
+
+# make sure perl paths are OK
+RUN eval $(perl -I$HOME/perl5/lib -Mlocal::lib)
+RUN echo 'eval "$(perl -I$HOME/perl5/lib/perl5 -Mlocal::lib)"' >> ~/.bashrc
 
 # Collect the extended arxmliv-bindings files
 ENV ARXMLIV_BINDINGS_COMMIT=baf9023488eda23bcdeb2e8237a17d0efdac0651
