@@ -59,7 +59,7 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
   perl-doc
 
 # Collect the extended arxmliv-bindings files
-ENV ARXMLIV_BINDINGS_COMMIT=974ac018fb22ea8e38c80d98a71ba5269d2fea18
+ENV ARXMLIV_BINDINGS_COMMIT=baf9023488eda23bcdeb2e8237a17d0efdac0651
 ENV ARXMLIV_BINDINGS_BASE=/opt/arxmliv-bindings
 ENV ARXMLIV_BINDINGS_PATH=$ARXMLIV_BINDINGS_BASE/bindings
 RUN rm -rf $ARXMLIV_BINDINGS_BASE ; mkdir -p $ARXMLIV_BINDINGS_BASE
