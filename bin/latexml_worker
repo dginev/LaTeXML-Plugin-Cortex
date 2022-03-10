@@ -284,11 +284,14 @@ sub convert {
       push @latexml_sty_opts, "localrawstyles";
     }
     my $latexml_sty_opts = join(",", @latexml_sty_opts);
+    my @paths = ('.');
+    push @paths, $ENV{ARXMLIV_BINDINGS_PATH} if $ENV{ARXMLIV_BINDINGS_PATH};
+    push @paths, $ENV{ARXMLIV_SUPPORTED_ORIGINALS_PATH} if $ENV{ARXMLIV_SUPPORTED_ORIGINALS_PATH};
     my $conversion_opts=LaTeXML::Common::Config->new(
       local=>1, whatsin=>'archive', whatsout=>'archive',
       format=>'html5', mathparse=>'RecDescent',
       post=>1, math_formats=>['pmml','cmml','mathtex'],
-      paths => ['.',$ENV{ARXMLIV_BINDINGS_PATH}||()],
+      paths => \@paths,
       preload=>["[$latexml_sty_opts]latexml.sty"], defaultresources=>0,
       # modern documents are mostly unicode, which ones will we lose?
       # inputencoding=>'iso-8859-1',
