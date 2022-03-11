@@ -109,5 +109,5 @@ RUN perl -pi.bak -e 's/policy domain="resource" name="map" value="(\w+)"/policy 
 # Install LaTeXML-Plugin-Cortex, at a fixed commit, via cpanminus
 RUN mkdir -p /opt/latexml_plugin_cortex
 WORKDIR /opt/latexml_plugin_cortex
-ENV CORTEX_WORKER_COMMIT=589b113b31f3a9c0d01059e550535516ad6cc577
+ENV CORTEX_WORKER_COMMIT=5c9a831487f69a822da9cb4795a923485a2a2311
 RUN cpanm --verbose --skip-installed https://github.com/dginev/LaTeXML-Plugin-Cortex/tarball/$CORTEX_WORKER_COMMIT
