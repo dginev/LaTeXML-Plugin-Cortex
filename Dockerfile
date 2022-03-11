@@ -64,7 +64,7 @@ RUN eval $(perl -I$HOME/perl5/lib -Mlocal::lib)
 RUN echo 'eval "$(perl -I$HOME/perl5/lib/perl5 -Mlocal::lib)"' >> ~/.bashrc
 
 # Collect the extended arxmliv-bindings files
-ENV ARXMLIV_BINDINGS_COMMIT=0b6872bf9145f6013368cc9c6fe6f33a126871a8
+ENV ARXMLIV_BINDINGS_COMMIT=2d1573f5f9c54d5093d3694f7f336e7af01f06e6
 ENV ARXMLIV_BINDINGS_BASE=/opt/arxmliv-bindings
 ENV ARXMLIV_BINDINGS_PATH=$ARXMLIV_BINDINGS_BASE/bindings
 ENV ARXMLIV_SUPPORTED_ORIGINALS_PATH=$ARXMLIV_BINDINGS_BASE/supported_originals
@@ -77,7 +77,7 @@ RUN git reset --hard $ARXMLIV_BINDINGS_COMMIT
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
 RUN mkdir -p /opt/latexml
 WORKDIR /opt/latexml
-ENV LATEXML_COMMIT=35acac2629953e24599616fef828894934e33849
+ENV LATEXML_COMMIT=cd61089a78fe910a22cdf0cec1c48d2a6d6b2ed0
 RUN cpanm --notest --verbose --skip-installed https://github.com/brucemiller/LaTeXML/tarball/$LATEXML_COMMIT
 
 # cortex worker dependencies
