@@ -56,8 +56,8 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
   libxslt1.1 \
   liblocal-lib-perl \
   make \
-  perl-doc \  
-  cpanminus 
+  perl-doc \
+  cpanminus
 
 # make sure perl paths are OK
 RUN eval $(perl -I$HOME/perl5/lib -Mlocal::lib)
@@ -77,7 +77,7 @@ RUN git reset --hard $ARXMLIV_BINDINGS_COMMIT
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
 RUN mkdir -p /opt/latexml
 WORKDIR /opt/latexml
-ENV LATEXML_COMMIT=cd61089a78fe910a22cdf0cec1c48d2a6d6b2ed0
+ENV LATEXML_COMMIT=ba14e0d9823f84a16e29111cd7701d3ded2310fe
 RUN cpanm --notest --verbose --skip-installed https://github.com/brucemiller/LaTeXML/tarball/$LATEXML_COMMIT
 
 # cortex worker dependencies
