@@ -113,5 +113,5 @@ RUN mkdir -p /opt/latexml_plugin_cortex
 WORKDIR /opt/latexml_plugin_cortex
 ARG HOSTTIME
 ENV DOCKER_BUILD_TIME=$HOSTTIME
-ENV CORTEX_WORKER_COMMIT=f60ab8054032b78ebe60c09f23d55748cd2122f3
+ENV CORTEX_WORKER_COMMIT=3cc0226d615408c0d7ec9dea47a969aa81d0f365
 RUN cpanm --verbose https://github.com/dginev/LaTeXML-Plugin-Cortex/tarball/$CORTEX_WORKER_COMMIT
