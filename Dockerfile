@@ -21,6 +21,8 @@ ENV TZ=America/New_York
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 ARG HOSTNAME
 ENV DOCKER_HOST=$HOSTNAME
+ARG HOSTTIME
+ENV DOCKER_BUILD_TIME=$HOSTTIME
 
 # LaTeX stuff first, because it's enormous and doesn't change much
 RUN set -ex && apt-get update -qq && apt-get install -qy \
@@ -113,6 +115,3 @@ RUN mkdir -p /opt/latexml_plugin_cortex
 WORKDIR /opt/latexml_plugin_cortex
 ENV CORTEX_WORKER_COMMIT=a4ee3033cb39df25b2eaac5fe947790d04fb601f
 RUN cpanm --verbose --skip-installed https://github.com/dginev/LaTeXML-Plugin-Cortex/tarball/$CORTEX_WORKER_COMMIT
-
-# Record _actual_ installed values
-ENV DOCKER_BUILD_TIME=$(date -Ihours)
