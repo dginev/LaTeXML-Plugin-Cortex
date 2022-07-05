@@ -5,7 +5,8 @@
 ##
 ## build via:
 ##
-## docker build --tag latexml-plugin-cortex:1.6 .
+## export HOSTNAME=$(hostname); export HOSTTIME=$(date -Ihours);
+## docker build --build-arg HOSTNAME=$HOSTNAME --build-arg HOSTTIME=$HOSTTIME --tag latexml-plugin-cortex:1.7 .
 ##
 ## run example via:
 ##
@@ -111,7 +112,9 @@ RUN perl -pi.bak -e 's/policy domain="resource" name="map" value="(\w+)"/policy 
 # Install LaTeXML-Plugin-Cortex, at a fixed commit, via cpanminus
 RUN mkdir -p /opt/latexml_plugin_cortex
 WORKDIR /opt/latexml_plugin_cortex
-ARG HOSTTIME
-ENV DOCKER_BUILD_TIME=$HOSTTIME
 ENV CORTEX_WORKER_COMMIT=3cc0226d615408c0d7ec9dea47a969aa81d0f365
 RUN cpanm --verbose https://github.com/dginev/LaTeXML-Plugin-Cortex/tarball/$CORTEX_WORKER_COMMIT
+
+ARG HOSTTIME
+ENV DOCKER_BUILD_TIME=$HOSTTIME
+RUN echo "Build started at $DOCKER_BUILD_TIME, ended at $(date -Isecond)"
