@@ -19,6 +19,8 @@
 FROM ubuntu:22.04
 ENV TZ=America/New_York
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+ARG HOSTNAME
+ENV DOCKER_HOST=$HOSTNAME
 
 # LaTeX stuff first, because it's enormous and doesn't change much
 RUN set -ex && apt-get update -qq && apt-get install -qy \
@@ -77,7 +79,7 @@ RUN git reset --hard $ARXMLIV_BINDINGS_COMMIT
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
 RUN mkdir -p /opt/latexml
 WORKDIR /opt/latexml
-ENV LATEXML_COMMIT=f827d781ff0ababafff427da05503d57476e3c1e
+ENV LATEXML_COMMIT=29d97c7c9cd44d9b59deff2d228e3786ebb04007
 RUN cpanm --notest --verbose --skip-installed https://github.com/brucemiller/LaTeXML/tarball/$LATEXML_COMMIT
 
 # cortex worker dependencies
@@ -111,3 +113,6 @@ RUN mkdir -p /opt/latexml_plugin_cortex
 WORKDIR /opt/latexml_plugin_cortex
 ENV CORTEX_WORKER_COMMIT=99d07483a64f57730f7cbfc070425163ce57ead5
 RUN cpanm --verbose --skip-installed https://github.com/dginev/LaTeXML-Plugin-Cortex/tarball/$CORTEX_WORKER_COMMIT
+
+# Record _actual_ installed values
+ENV DOCKER_BUILD_TIME=$(date -Ihours)
