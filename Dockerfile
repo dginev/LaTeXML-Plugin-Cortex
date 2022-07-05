@@ -5,17 +5,17 @@
 ##
 ## build via:
 ##
-## export HOSTNAME=$(hostname); export HOSTTIME=$(date -Ihours);
-## docker build --build-arg HOSTNAME=$HOSTNAME --build-arg HOSTTIME=$HOSTTIME --tag latexml-plugin-cortex:1.7 .
+## export HOSTNAME=$(hostname); export HOSTTIME=$(date -Iminute);
+## docker build --build-arg HOSTNAME=$HOSTNAME --build-arg HOSTTIME=$HOSTTIME --tag latexml-plugin-cortex:2.1 .
 ##
 ## run example via:
 ##
 ##
 ## 1. threadripper 1950x
-## docker run --cpus="24.0" --memory="48g" --shm-size="32g" --hostname=$(hostname) latexml-plugin-cortex:1.2 latexml_harness 131.188.48.209
+## docker run --cpus="24.0" --memory="48g" --shm-size="32g" --hostname=$(hostname) latexml-plugin-cortex:2.1 latexml_harness 131.188.48.209
 ##
 ## 2. monster config style:
-## docker run --cpus="72.0" --memory="96g" --shm-size="64g" --hostname=$(hostname) latexml-plugin-cortex:1.2 latexml_harness 131.188.48.209
+## docker run --cpus="72.0" --memory="96g" --shm-size="64g" --hostname=$(hostname) latexml-plugin-cortex:2.1 latexml_harness 131.188.48.209
 
 FROM ubuntu:22.04
 ENV TZ=America/New_York
@@ -110,11 +110,13 @@ RUN perl -pi.bak -e 's/policy domain="resource" name="memory" value="(\w+)"/poli
 RUN perl -pi.bak -e 's/policy domain="resource" name="map" value="(\w+)"/policy domain="resource" name="map" value="2GiB"/' /etc/ImageMagick-6/policy.xml
 
 # Install LaTeXML-Plugin-Cortex, at a fixed commit, via cpanminus
-RUN mkdir -p /opt/latexml_plugin_cortex
-WORKDIR /opt/latexml_plugin_cortex
+ARG HOSTTIME
+ENV DOCKER_BUILD_TIME=$HOSTTIME
+ENV WORKING_DIR=/opt/latexml_plugin_cortex
+RUN if [ -d "$WORKING_DIR" ]; then rm -Rf $WORKING_DIR; fi
+RUN mkdir -p $WORKING_DIR
+WORKDIR $WORKING_DIR
 ENV CORTEX_WORKER_COMMIT=afcc5026f4bf53f2d02045af627cad5864f26777
 RUN cpanm --verbose https://github.com/dginev/LaTeXML-Plugin-Cortex/tarball/$CORTEX_WORKER_COMMIT
 
-ARG HOSTTIME
-ENV DOCKER_BUILD_TIME=$HOSTTIME
-RUN echo "Build started at $DOCKER_BUILD_TIME, ended at $(date -Isecond)"
+RUN echo "Build started at $DOCKER_BUILD_TIME, ended at $(date -Iminute)"
