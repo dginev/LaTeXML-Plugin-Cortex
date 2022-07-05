@@ -280,6 +280,10 @@ sub convert {
     $LaTeXML::Version::REVISION .= '; arxmliv '.substr($ENV{ARXMLIV_BINDINGS_COMMIT}, 0, 8)if $ENV{ARXMLIV_BINDINGS_COMMIT};
     $LaTeXML::Version::REVISION .= '; host '.$ENV{DOCKER_HOST} if $ENV{DOCKER_HOST};
     $LaTeXML::Version::REVISION .= '; built on '.$ENV{DOCKER_BUILD_TIME} if $ENV{DOCKER_BUILD_TIME};
+    # we also need to override the main accessor variables for versioning
+    $LaTeXML::FULLVERSION = "LaTeXML version $LaTeXML::VERSION; revision $LaTeXML::Version::REVISION";
+    $LaTeXML::IDENTITY = "latexml_worker ($LaTeXML::FULLVERSION)";
+    # versioning setup is done!
 
     # Set up conversion parameters for LaTeXML
     # Requires latexml 0.8.6, commit 48239014cf05ba2c72ad62b10f4105d592117cdc or newer
