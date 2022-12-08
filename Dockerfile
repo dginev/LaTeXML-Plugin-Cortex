@@ -116,7 +116,7 @@ ENV WORKING_DIR=/opt/latexml_plugin_cortex
 RUN if [ -d "$WORKING_DIR" ]; then rm -Rf $WORKING_DIR; fi
 RUN mkdir -p $WORKING_DIR
 WORKDIR $WORKING_DIR
-ENV CORTEX_WORKER_COMMIT=c110cafdba8bc0d79861d046abdc0e7b35feefdc
+ENV CORTEX_WORKER_COMMIT=29da51ca3feaceda9a0c218dfedaf92364f61c9f
 RUN cpanm --verbose https://github.com/dginev/LaTeXML-Plugin-Cortex/tarball/$CORTEX_WORKER_COMMIT
 
 RUN echo "Build started at $DOCKER_BUILD_TIME, ended at $(date -Iminute)"
