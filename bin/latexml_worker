@@ -304,7 +304,7 @@ sub convert {
       format=>'html5', mathparse=>'RecDescent',
       post=>1, math_formats=>['pmml','cmml','mathtex'],
       paths => \@paths,
-      preload=>["[$latexml_sty_opts]latexml.sty"], defaultresources=>0,
+      preload=>["[$latexml_sty_opts]latexml.sty","ar5iv.sty"], defaultresources=>0,
       # modern documents are mostly unicode, which ones will we lose?
       # inputencoding=>'iso-8859-1',
       timeout=>$timeout_limit,

@@ -66,15 +66,15 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
 RUN eval $(perl -I$HOME/perl5/lib -Mlocal::lib)
 RUN echo 'eval "$(perl -I$HOME/perl5/lib/perl5 -Mlocal::lib)"' >> ~/.bashrc
 
-# Collect the extended arxmliv-bindings files
-ENV ARXMLIV_BINDINGS_COMMIT=5df05d473b925009216da5ac2fc6727b7d59fbc1
-ENV ARXMLIV_BINDINGS_BASE=/opt/arxmliv-bindings
-ENV ARXMLIV_BINDINGS_PATH=$ARXMLIV_BINDINGS_BASE/bindings
-ENV ARXMLIV_SUPPORTED_ORIGINALS_PATH=$ARXMLIV_BINDINGS_BASE/supported_originals
-RUN rm -rf $ARXMLIV_BINDINGS_BASE ; mkdir -p $ARXMLIV_BINDINGS_BASE
-RUN git clone https://github.com/dginev/arxmliv-bindings $ARXMLIV_BINDINGS_BASE
-WORKDIR $ARXMLIV_BINDINGS_BASE
-RUN git reset --hard $ARXMLIV_BINDINGS_COMMIT
+# Collect the extended ar5iv-bindings files
+ENV AR5IV_BINDINGS_COMMIT=5df05d473b925009216da5ac2fc6727b7d59fbc1
+ENV AR5IV_BINDINGS_BASE=/opt/ar5iv-bindings
+ENV AR5IV_BINDINGS_PATH=$AR5IV_BINDINGS_BASE/bindings
+ENV AR5IV_SUPPORTED_ORIGINALS_PATH=$AR5IV_BINDINGS_BASE/supported_originals
+RUN rm -rf $AR5IV_BINDINGS_BASE ; mkdir -p $AR5IV_BINDINGS_BASE
+RUN git clone https://github.com/dginev/ar5iv-bindings $AR5IV_BINDINGS_BASE
+WORKDIR $AR5IV_BINDINGS_BASE
+RUN git reset --hard $AR5IV_BINDINGS_COMMIT
 
 # Install LaTeXML, at a fixed commit, via cpanminus
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
