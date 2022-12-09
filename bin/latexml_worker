@@ -277,7 +277,7 @@ sub convert {
     use LaTeXML::Common::Config;
     # set the installed latexml revision, so that we report it back to the server
     $LaTeXML::Version::REVISION = substr($ENV{LATEXML_COMMIT}||'', 0, 8);
-    $LaTeXML::Version::REVISION .= '; arxmliv '.substr($ENV{ARXMLIV_BINDINGS_COMMIT}, 0, 8)if $ENV{ARXMLIV_BINDINGS_COMMIT};
+    $LaTeXML::Version::REVISION .= '; ar5iv-bindings '.substr($ENV{AR5IV_BINDINGS_COMMIT}, 0, 8)if $ENV{AR5IV_BINDINGS_COMMIT};
     $LaTeXML::Version::REVISION .= '; host '.$ENV{DOCKER_HOST} if $ENV{DOCKER_HOST};
     $LaTeXML::Version::REVISION .= '; built on '.$ENV{DOCKER_BUILD_TIME} if $ENV{DOCKER_BUILD_TIME};
     # we also need to override the main accessor variables for versioning
@@ -297,8 +297,8 @@ sub convert {
     }
     my $latexml_sty_opts = join(",", @latexml_sty_opts);
     my @paths = ('.');
-    push @paths, $ENV{ARXMLIV_BINDINGS_PATH} if $ENV{ARXMLIV_BINDINGS_PATH};
-    push @paths, $ENV{ARXMLIV_SUPPORTED_ORIGINALS_PATH} if $ENV{ARXMLIV_SUPPORTED_ORIGINALS_PATH};
+    push @paths, $ENV{AR5IV_BINDINGS_PATH} if $ENV{AR5IV_BINDINGS_PATH};
+    push @paths, $ENV{AR5IV_SUPPORTED_ORIGINALS_PATH} if $ENV{AR5IV_SUPPORTED_ORIGINALS_PATH};
     my $conversion_opts=LaTeXML::Common::Config->new(
       local=>1, whatsin=>'archive', whatsout=>'archive',
       format=>'html5', mathparse=>'RecDescent',
