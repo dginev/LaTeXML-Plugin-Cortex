@@ -289,7 +289,7 @@ sub convert {
     # Requires latexml 0.8.6, commit 48239014cf05ba2c72ad62b10f4105d592117cdc or newer
     # Hard to calibrate reasonable limits.
     # Example :iflimit of 999,999 does not suffice for arXiv:1610.02453
-    my @latexml_sty_opts = qw(nobibtex ids mathlexemes magnify=2 zoomout=2 tokenlimit=99999999 iflimit=1499999 absorblimit=1299999 pushbacklimit=599999);
+    my @latexml_sty_opts = qw(nobibtex ids mathlexemes nobreakuntex magnify=2 zoomout=2 tokenlimit=99999999 iflimit=1499999 absorblimit=1299999 pushbacklimit=599999);
     if ($cortex_service eq 'raw_tex_to_html') {
       push @latexml_sty_opts, "rawstyles";
     } else { # Experiment: always enable localrawstyles, in an attempt to improve custom arXiv dependencies
