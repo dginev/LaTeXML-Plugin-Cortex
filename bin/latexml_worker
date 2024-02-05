@@ -287,8 +287,8 @@ sub convert {
 
     # Set up conversion parameters for LaTeXML (latexml 0.8.8 or newer)
     # Hard to calibrate reasonable limits.
-    # Example :iflimit of 999,999 does not suffice for arXiv:1610.02453
-    my @latexml_sty_opts = qw(nobibtex ids nobreakuntex magnify=1.8 zoomout=1.8 tokenlimit=99999999 iflimit=1499999 absorblimit=1299999 pushbacklimit=599999);
+    # Examples: tokenlimit and iflimit with arXiv:1610.02453 or arXiv:2006.16904
+    my @latexml_sty_opts = qw(nobibtex ids nobreakuntex magnify=1.8 zoomout=1.8 tokenlimit=179999999 iflimit=2399999 absorblimit=1299999 pushbacklimit=599999);
     if ($cortex_service eq 'raw_tex_to_html') {
       push @latexml_sty_opts, "rawstyles";
     } else { # Experiment: always enable localrawstyles, in an attempt to improve custom arXiv dependencies
