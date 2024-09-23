@@ -9,7 +9,7 @@
 # | Copyright (c) 2015                                                  | #
 # | Released under the MIT License                                      | #
 # |---------------------------------------------------------------------| #
-# | Deyan Ginev <d.ginev@jacobs-university.de>                  #_#     | #
+# | Deyan Ginev <deyan.ginev@gmail.com>                         #_#     | #
 # | http://kwarc.info/people/dginev                            (o o)    | #
 # \=========================================================ooo==U==ooo=/ #
 use strict;
@@ -75,7 +75,7 @@ sub stop_child {
   waitpid($pid,0); }
 
 # Start cron loop managing the client and worker children
-while (1) { # Every minute, check:
+while (1) { # Every 10s, check:
   # Reinit, When servers or backends change
   my $needed = workers_needed();
   # Start workers, if needed
@@ -179,28 +179,21 @@ __END__
 
 =head1 NAME
 
-C<cortex-gears> - Scheduler of the CorTeX framework
+C<latexml_harness> - Scheduler of the CorTeX framework
 
 =head1 SYNOPSIS
 
-TODO
+The harness process monitors a pool of worker child processes and respawns them as needed.
 
 =head1 DESCRIPTION
 
-TODO
+The core task is to ensure a desired number of worker processes exist, and respawn them in the course of long-term operation.
 
-=head1 Gearman Installation
-
-Under Debian-based systems:
- sudo apt-get install
-   gearman
-   gearman-job-server
-   gearman-tools
-   gearman-server
-   mod-gearman-tools
-   libgearman-client-async-perl
-   libmodule-install-xsutil-perl
-   libgearman-dev
+Some current considerations:
+ - leave between 1 and 4 logical cores available for the OS to have flexibility.
+ - cron-like rechecking of worker pids; currently pinned at 10 second intervals
+ - terminate all workers on any interrupt-like signal
+ - outdated: initial design was aimed at multiple services running in parallel, but in practice we only run 1 service with max CPUs.
 
 =head1 AUTHOR
 
