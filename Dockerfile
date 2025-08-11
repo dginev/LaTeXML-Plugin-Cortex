@@ -54,9 +54,8 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
   libwww-perl \
   libxml-libxml-perl \
   libxml-libxslt-perl \
-  libxml2 libxml2-dev \
+  libxml2-dev \
   libxslt1-dev \
-  libxslt1.1 \
   liblocal-lib-perl \
   make \
   perl-doc \
@@ -80,7 +79,7 @@ RUN git reset --hard $AR5IV_BINDINGS_COMMIT
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
 RUN mkdir -p /opt/latexml
 WORKDIR /opt/latexml
-ENV LATEXML_COMMIT=5e47b3b13a386826581a31464083086520ca2817
+ENV LATEXML_COMMIT=5d3d55df57fbb202de1f5104c5e1fb2847fc77f9
 RUN cpanm --notest --verbose https://github.com/brucemiller/LaTeXML/tarball/$LATEXML_COMMIT
 
 # cortex worker dependencies
@@ -116,7 +115,7 @@ ENV WORKING_DIR=/opt/latexml_plugin_cortex
 RUN if [ -d "$WORKING_DIR" ]; then rm -Rf $WORKING_DIR; fi
 RUN mkdir -p $WORKING_DIR
 WORKDIR $WORKING_DIR
-ENV CORTEX_WORKER_COMMIT=878db774c1b557f7158151e246eb9caf52bf5f9a
-RUN cpanm --verbose https://github.com/dginev/LaTeXML-Plugin-Cortex/tarball/$CORTEX_WORKER_COMMIT
+ENV CORTEX_WORKER_COMMIT=b0c61850a6611abc2418023c6216e5449ad8167f
+RUN cpanm --verbose --build-args formats https://github.com/brucemiller/LaTeXML/archive/${LATEXML_COMMIT}.zip
 
 RUN echo "Build started at $DOCKER_BUILD_TIME, ended at $(date -Iminute)"
