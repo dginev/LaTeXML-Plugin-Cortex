@@ -115,7 +115,7 @@ ENV WORKING_DIR=/opt/latexml_plugin_cortex
 RUN if [ -d "$WORKING_DIR" ]; then rm -Rf $WORKING_DIR; fi
 RUN mkdir -p $WORKING_DIR
 WORKDIR $WORKING_DIR
-ENV CORTEX_WORKER_COMMIT=b0c61850a6611abc2418023c6216e5449ad8167f
+ENV CORTEX_WORKER_COMMIT=776bc92ac4b94d1c02d3d4a4b40b7626240e4e11
 RUN cpanm --verbose --build-args formats https://github.com/brucemiller/LaTeXML/archive/${LATEXML_COMMIT}.zip
 
 RUN echo "Build started at $DOCKER_BUILD_TIME, ended at $(date -Iminute)"
