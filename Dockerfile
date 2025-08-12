@@ -54,9 +54,8 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
   libwww-perl \
   libxml-libxml-perl \
   libxml-libxslt-perl \
-  libxml2 libxml2-dev \
+  libxml2-dev \
   libxslt1-dev \
-  libxslt1.1 \
   liblocal-lib-perl \
   make \
   perl-doc \
