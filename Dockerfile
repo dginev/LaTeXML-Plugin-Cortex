@@ -80,8 +80,8 @@ RUN git reset --hard $AR5IV_BINDINGS_COMMIT
 RUN export HARNESS_OPTIONS=j$(grep -c ^processor /proc/cpuinfo):c
 RUN mkdir -p /opt/latexml
 WORKDIR /opt/latexml
-ENV LATEXML_COMMIT=5e47b3b13a386826581a31464083086520ca2817
-RUN cpanm --notest --verbose https://github.com/brucemiller/LaTeXML/tarball/$LATEXML_COMMIT
+ENV LATEXML_COMMIT=ecbe311841e00734a6b180e4a7ea152e53cbfe21
+RUN cpanm --notest --verbose --build-args formats https://github.com/brucemiller/LaTeXML/tarball/$LATEXML_COMMIT
 
 # cortex worker dependencies
 RUN set -ex && apt-get update -qq && apt-get install -qy \
