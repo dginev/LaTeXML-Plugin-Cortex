@@ -24,10 +24,10 @@ use warnings;
 
 use ZMQ::LibZMQ3;
 use ZMQ::Constants qw(ZMQ_DEALER ZMQ_PUSH ZMQ_SNDMORE ZMQ_DONTWAIT ZMQ_RCVMORE ZMQ_IDENTITY ZMQ_LINGER);
-use File::Temp qw(tempfile);
+use File::Temp     qw(tempfile);
 use File::Find;
 use Archive::Zip qw(:CONSTANTS :ERROR_CODES);
-use List::Util qw(min);
+use List::Util   qw(min);
 use Proc::ProcessTable;
 
 # Set up basic parameters for this CorTeX service
@@ -35,72 +35,72 @@ my $message_size = 100000;
 my $work_counter = 0;
 # 6 GB max, we can risk going a little out of control on large clusters
 # (PhD theses and books allocate some RAM, e.g. arXiv:2105.10386 reaches 5 GB use)
-my $memory_limit = 6 * 1024 * 1024 * 1024;
-my $timeout_limit = 45 * 60; # If worker isn't done in 45 minutes - timeout
-my $m_timeout_limit = $timeout_limit+300; # We allow files to live on the ramdisk for 5 minutes longer than the timeout limit. Should be enough for data transfer to complete.
+my $memory_limit  = 6 * 1024 * 1024 * 1024;
+my $timeout_limit = 45 * 60;                  # If worker isn't done in 45 minutes - timeout
+my $m_timeout_limit = $timeout_limit + 300; # We allow files to live on the ramdisk for 5 minutes longer than the timeout limit. Should be enough for data transfer to complete.
 # We also provide defaults for certain defensive environmental variables, if not yet set
 #  in particular, for LaTeXML's ImageMagick conversion jobs.
 #  pending review at: https://github.com/brucemiller/LaTeXML/pull/666
-$ENV{MAGICK_DISK_LIMIT} = "2GiB" unless defined $ENV{MAGICK_DISK_LIMIT};
+$ENV{MAGICK_DISK_LIMIT}   = "2GiB"   unless defined $ENV{MAGICK_DISK_LIMIT};
 $ENV{MAGICK_MEMORY_LIMIT} = "512MiB" unless defined $ENV{MAGICK_MEMORY_LIMIT};
-$ENV{MAGICK_MAP_LIMIT} = "1GiB" unless defined $ENV{MAGICK_MAP_LIMIT};
-$ENV{MAGICK_TIME_LIMIT} = "900" unless defined $ENV{MAGICK_TIME_LIMIT};
+$ENV{MAGICK_MAP_LIMIT}    = "1GiB"   unless defined $ENV{MAGICK_MAP_LIMIT};
+$ENV{MAGICK_TIME_LIMIT}   = "900"    unless defined $ENV{MAGICK_TIME_LIMIT};
 # No excuses - use the RAM disk
 $ENV{MAGICK_TMPDIR} = '/dev/shm';
-$ENV{TMPDIR}='/dev/shm';
-my $min_memory_needed = 1024 * 1024 * 1024; # 1 GB for now
+$ENV{TMPDIR}        = '/dev/shm';
+my $min_memory_needed = 1024 * 1024 * 1024;    # 1 GB for now
 
 # Set up the cortex endpoints
-my $cortex_ip = shift || '131.188.48.209';
+my $cortex_ip              = shift || '131.188.48.209';
 my $cortex_ventilator_port = shift || '51695';
-my $cortex_sink_port = shift || '51696';
-my $cortex_service = shift || 'tex_to_html';
-my $identity = shift || join('',map { (q(a)..q(z))[rand(26)] } 1 .. 20);
+my $cortex_sink_port       = shift || '51696';
+my $cortex_service         = shift || 'tex_to_html';
+my $identity               = shift || join('', map { (q(a) .. q(z))[rand(26)] } 1 .. 20);
 
 my $ventilator_address = "tcp://$cortex_ip:$cortex_ventilator_port";
-my $sink_address = "tcp://$cortex_ip:$cortex_sink_port";
-my $free_mem = 0;
+my $sink_address       = "tcp://$cortex_ip:$cortex_sink_port";
+my $free_mem           = 0;
 
 my $zmq_ventilator_context = zmq_ctx_new();
-my $zmq_sink_context = zmq_ctx_new();
+my $zmq_sink_context       = zmq_ctx_new();
 
 # Connect to a task ventilator
-my $ventilator = zmq_socket( $zmq_ventilator_context, ZMQ_DEALER );
+my $ventilator = zmq_socket($zmq_ventilator_context, ZMQ_DEALER);
 zmq_setsockopt($ventilator, ZMQ_IDENTITY, $identity);
 (zmq_connect($ventilator, $ventilator_address)) && (die "-- [$$] connect to ventilator failed! $!\n");
 
 # Connect to a task sink
-my $sink = zmq_socket( $zmq_sink_context, ZMQ_PUSH );
+my $sink = zmq_socket($zmq_sink_context, ZMQ_PUSH);
 zmq_setsockopt($sink, ZMQ_IDENTITY, $identity);
 (zmq_connect($sink, $sink_address)) && (die "-- [$$] connect to sink failed! $!\n");
 
 # Work in perpetuity
-print STDERR "-- [$$] worker ",$identity," started\n";
-my $taskid = -1;
+print STDERR "-- [$$] worker ", $identity, " started\n";
+my $taskid     = -1;
 my $taskid_msg = zmq_msg_init();
-my $recv_msg = zmq_msg_init();
+my $recv_msg   = zmq_msg_init();
 
 while (1) {
   # Before each job, ensure we have space sanity in the scratch tmpdir we are using
   $free_mem = 0;
   my $now = time();
-  { # Always try to clean up old / unneeded files.
+  {    # Always try to clean up old / unneeded files.
     local $\ = "\n";
-    my @entries = grep {/^\d/} map {chomp; $_} `ls $ENV{TMPDIR}`;
-    foreach my $name(@entries) {
+    my @entries = grep { /^\d/ } map { chomp; $_ } `ls $ENV{TMPDIR}`;
+    foreach my $name (@entries) {
       my $entry = "$ENV{TMPDIR}/$name";
       if (-e $entry) {
         my $m_entry = $now - (lstat($entry))[9];
         if ($m_entry > $m_timeout_limit) {
           print STDERR "-- [$$] deleting old entry: $entry";
-          eval {system("rm -rf $entry")};
+          eval { system("rm -rf $entry") };
         }
       }
     }
     # Recheck the free memory
-    my @parts = split(/\s+/,`df $ENV{TMPDIR}`); # modern Linux only for now, maybe improve later?
-    $free_mem = (($parts[10] || 0) + 0) * 1024; # in bytes, the df report is in kB
-    # If it is still insufficient, sleep for a minute, then retry
+    my @parts = split(/\s+/, `df $ENV{TMPDIR}`);    # modern Linux only for now, maybe improve later?
+    $free_mem = (($parts[10] || 0) + 0) * 1024;     # in bytes, the df report is in kB
+        # If it is still insufficient, sleep for a minute, then retry
     if ($free_mem < $min_memory_needed) {
       print STDERR "-- [$$] free memory is now $free_mem bytes, still insufficient. Sleeping for a minute.";
       sleep 60;
@@ -110,18 +110,18 @@ while (1) {
     }
   }
 
-  # Throttle by default, we will only accept an immediate next job if it looks like we've sent actual data back to the sink
-  #  (avoids unpleasant+uncaught edge cases where the reader continues on without performing any work.)
+# Throttle by default, we will only accept an immediate next job if it looks like we've sent actual data back to the sink
+#  (avoids unpleasant+uncaught edge cases where the reader continues on without performing any work.)
   my $mem_allowance = $free_mem;
   # print STDERR "-- [$$] Current mem_allowance: $mem_allowance bytes\n";
-  my $mem_guard = 0; # Guard for out-of-memory issues.
+  my $mem_guard      = 0;    # Guard for out-of-memory issues.
   my $throttle_guard = 1;
 
   print STDERR "-- [$$] waiting for jobs\n";
   my $rv = -1;
   $taskid = -1;
   my $debounced_wait = 0.5;
-  # First, request a task from the ventilator (note: this never returns a failure, even if socket is not bound)
+# First, request a task from the ventilator (note: this never returns a failure, even if socket is not bound)
   zmq_sendmsg($ventilator, $cortex_service);
   while ($rv == -1) {
     $rv = zmq_msg_recv($taskid_msg, $ventilator, ZMQ_DONTWAIT);
@@ -135,7 +135,7 @@ while (1) {
       # Terminating...
       print STDERR "-- [$$] zmq_msg_recv unreachable, cleaning up...\n";
       zmq_setsockopt($ventilator, ZMQ_LINGER, 5000);
-      zmq_setsockopt($sink, ZMQ_LINGER, 5000);
+      zmq_setsockopt($sink,       ZMQ_LINGER, 5000);
       zmq_msg_close($recv_msg);
       zmq_msg_close($taskid_msg);
       zmq_close($ventilator);
@@ -148,22 +148,22 @@ while (1) {
     if ($debounced_wait > 1) {
       print STDERR "-- [$$] failed initial task msg_recv: $! |Retry in $debounced_wait s.\n";
     }
-    sleep $debounced_wait; # retry in 2 seconds
+    sleep $debounced_wait;    # retry in 2 seconds
   }
 
   $taskid = zmq_msg_data($taskid_msg);
   print STDERR "-- [$$] receiving taskid #$taskid.\n";
 
   # Prepare a File for the input: we want a temp file, on a RAM disk (/dev/shm), without auto-remove
-  my ($input_fh, $input_filepath) = tempfile($taskid."_inXXXX", SUFFIX => ".zip", TMPDIR=>1, UNLINK => 0);
-  my ($output_fh, $output_filepath) = tempfile($taskid."_outXXXX", SUFFIX => ".zip", TMPDIR=>1, UNLINK => 0);
+  my ($input_fh, $input_filepath) = tempfile($taskid . "_inXXXX", SUFFIX => ".zip", TMPDIR => 1, UNLINK => 0);
+  my ($output_fh, $output_filepath) = tempfile($taskid . "_outXXXX", SUFFIX => ".zip", TMPDIR => 1, UNLINK => 0);
   close $output_fh;
   binmode($input_fh);
   my $input_size = 0;
   $debounced_wait = 0.5;
   while (1) {
     my $received = zmq_msg_recv($recv_msg, $ventilator, ZMQ_RCVMORE);
-    $input_size += $received;
+    $input_size    += $received;
     $mem_allowance -= $received;
     my $msg_data = zmq_msg_data($recv_msg);
     if ($mem_allowance > 0) {
@@ -178,9 +178,9 @@ while (1) {
     }
   }
   close $input_fh;
-  # If the remaining memory allowance is less than half the free memory measured at the start of receiving,
-  # there is a high chance the output won't fit the disk; this is conservative on the side of safety
-  if ($mem_allowance < ($free_mem / 2)) {  $mem_guard = 1; }
+# If the remaining memory allowance is less than half the free memory measured at the start of receiving,
+# there is a high chance the output won't fit the disk; this is conservative on the side of safety
+  if ($mem_allowance < ($free_mem / 2)) { $mem_guard = 1; }
   if ($mem_guard) {
     print STDERR "-- [$$] task #$taskid could not start conversion, mem_guard triggered.\n";
     # Clean up, then move on, we can't work on this task.
@@ -201,22 +201,22 @@ while (1) {
     print STDERR "-- [$$] conversion #$work_counter complete.\n";
     # Let sink know a result is incoming
     print STDERR "-- [$$] responding to sink with $taskid result ($is_converted bytes)...\n";
-    zmq_sendmsg($sink, $identity, ZMQ_SNDMORE);
+    zmq_sendmsg($sink, $identity,       ZMQ_SNDMORE);
     zmq_sendmsg($sink, $cortex_service, ZMQ_SNDMORE);
-    zmq_sendmsg($sink, $taskid, ZMQ_SNDMORE);
+    zmq_sendmsg($sink, $taskid,         ZMQ_SNDMORE);
 
-    if ($is_converted) { # Did the conversion succeed? Determine response payload if so
+    if ($is_converted) {    # Did the conversion succeed? Determine response payload if so
       open(my $converted_fh, "<", $output_filepath);
       binmode($converted_fh);
       # Stream converted data via zmq
       #  Read file in $message_size blocks
       my $data_buffer = '';
       while (my $size = read($converted_fh, $data_buffer, $message_size)) {
-        # Disable throttle if we've sent back data
-        # Note: the throttle guards us from aberrant workers that may be e.g. out of disk space on the local machine
-        #       and hence may quickly fetch & fail, draining the job queue with misleading Fatal errors.
-        # Hence, ALWAYS when an output file fails to be written, even if due to genuine errors in the document markup,
-        #       add a one minute pause to the worker. We can not trust workers to be fully robust and error-free.
+# Disable throttle if we've sent back data
+# Note: the throttle guards us from aberrant workers that may be e.g. out of disk space on the local machine
+#       and hence may quickly fetch & fail, draining the job queue with misleading Fatal errors.
+# Hence, ALWAYS when an output file fails to be written, even if due to genuine errors in the document markup,
+#       add a one minute pause to the worker. We can not trust workers to be fully robust and error-free.
         $throttle_guard = 0;
 
         if ($size < $message_size) {
@@ -224,7 +224,7 @@ while (1) {
           zmq_send($sink, $data_buffer, $size, 0);
         } else {
           # Message part, more will follow
-          zmq_send($sink,$data_buffer, $size, ZMQ_SNDMORE);
+          zmq_send($sink, $data_buffer, $size, ZMQ_SNDMORE);
         }
         $data_buffer = '';
       }
@@ -236,9 +236,9 @@ while (1) {
         print STDERR "-- [$$] task #$taskid (worker job $work_counter) failed.\n";
       }
     }
-    else { # Conversion failed, send an empty result body (if we had input)
+    else {    # Conversion failed, send an empty result body (if we had input)
       print STDERR "-- [$$] task #$taskid (worker job $work_counter) failed.\n";
-      zmq_sendmsg($sink,"");
+      zmq_sendmsg($sink, "");
     }
   }
   # Time to remove our temp files
@@ -255,19 +255,19 @@ sub convert {
   my $log_filepath = "cortex.log";
   ### SPAWN a new LaTeXML process here, we are entering unsafe territory
   my $pid = fork();
-  die if not defined $pid; # Error-handling
+  die if not defined $pid;    # Error-handling
   ###
   # 1. PARENT
   if ($pid) {
     # Simply wait for the child to terminate and return:
     return waitpid($pid, 0);
   } else {
-  ###
-  # 2. CHILD
+    ###
+    # 2. CHILD
     # Group leader, so that we can timeout the entire process group
     setpgrp(0, 0);
-    # External timer to prevent problems in system calls
-    #    20 seconds extra, so that the latexml timeout has theoretical chance to get registered and reported back successfully
+# External timer to prevent problems in system calls
+#    20 seconds extra, so that the latexml timeout has theoretical chance to get registered and reported back successfully
     my $timer_pid = with_external_guard($timeout_limit + 20, $memory_limit, $destination, $log_filepath);
     # CorTeX workhorses have lowest priority, to avoid overloading the machine
     setpriority(0, $$, 20);
@@ -276,53 +276,56 @@ sub convert {
     use LaTeXML;
     use LaTeXML::Common::Config;
     # set the installed latexml revision, so that we report it back to the server
-    $LaTeXML::Version::REVISION = substr($ENV{LATEXML_COMMIT}||'', 0, 8);
-    $LaTeXML::Version::REVISION .= '; ar5iv-bindings '.substr($ENV{AR5IV_BINDINGS_COMMIT}, 0, 8)if $ENV{AR5IV_BINDINGS_COMMIT};
-    $LaTeXML::Version::REVISION .= '; host '.$ENV{DOCKER_HOST} if $ENV{DOCKER_HOST};
-    $LaTeXML::Version::REVISION .= '; built on '.$ENV{DOCKER_BUILD_TIME} if $ENV{DOCKER_BUILD_TIME};
+    $LaTeXML::Version::REVISION = substr($ENV{LATEXML_COMMIT} || '', 0, 8);
+    $LaTeXML::Version::REVISION .= '; ar5iv-bindings ' . substr($ENV{AR5IV_BINDINGS_COMMIT}, 0, 8) if $ENV{AR5IV_BINDINGS_COMMIT};
+    $LaTeXML::Version::REVISION .= '; host ' . $ENV{DOCKER_HOST}           if $ENV{DOCKER_HOST};
+    $LaTeXML::Version::REVISION .= '; built on ' . $ENV{DOCKER_BUILD_TIME} if $ENV{DOCKER_BUILD_TIME};
     # we also need to override the main accessor variables for versioning
     $LaTeXML::FULLVERSION = "LaTeXML version $LaTeXML::VERSION; revision $LaTeXML::Version::REVISION";
-    $LaTeXML::IDENTITY = "latexml_worker ($LaTeXML::FULLVERSION)";
+    $LaTeXML::IDENTITY    = "latexml_worker ($LaTeXML::FULLVERSION)";
     # versioning setup is done!
 
     # Set up conversion parameters for LaTeXML (latexml 0.8.8 or newer)
     # Hard to calibrate reasonable limits.
     # Examples: tokenlimit and iflimit with arXiv:2006.16904, arXiv:2009.10060, arXiv:1807.00758
     my @latexml_sty_opts = qw(nobibtex nobreakuntex magnify=1.3 zoomout=1.3 tokenlimit=249999999 iflimit=3599999 absorblimit=1299999 pushbacklimit=599999);
-    if ($cortex_service eq 'raw_tex_to_html') {
-      push @latexml_sty_opts, "rawstyles";
-    } else { # Experiment: always enable localrawstyles, in an attempt to improve custom arXiv dependencies
-      push @latexml_sty_opts, "localrawstyles";
-    }
+# if ($cortex_service eq 'raw_tex_to_html') {
+#   push @latexml_sty_opts, "rawstyles";
+# } else { # Experiment: always enable localrawstyles, in an attempt to improve custom arXiv dependencies
+#   push @latexml_sty_opts, "localrawstyles";
+# }
+# Sep 1, 2025 experiment: enable full loading of raw styles to compare rc-v0.9 results
+    push @latexml_sty_opts, "rawstyles";
     my $latexml_sty_opts = join(",", @latexml_sty_opts);
-    my @paths = ('.');
-    push @paths, $ENV{AR5IV_BINDINGS_PATH} if $ENV{AR5IV_BINDINGS_PATH};
+    my @paths            = ('.');
+    push @paths, $ENV{AR5IV_BINDINGS_PATH}            if $ENV{AR5IV_BINDINGS_PATH};
     push @paths, $ENV{AR5IV_SUPPORTED_ORIGINALS_PATH} if $ENV{AR5IV_SUPPORTED_ORIGINALS_PATH};
-    my $conversion_opts=LaTeXML::Common::Config->new(
-      local=>1, whatsin=>'archive', whatsout=>'archive',
-      format=>'html5', mathparse=>'RecDescent',
-      post=>1, math_formats=>['pmml','mathtex'], invisibletimes=>0,
-      paths => \@paths,
-      preload=>["[$latexml_sty_opts]latexml.sty","ar5iv.sty"], defaultresources=>0,
+    my $conversion_opts = LaTeXML::Common::Config->new(
+      local   => 1,       whatsin      => 'archive', whatsout => 'archive',
+      format  => 'html5', mathparse    => 'RecDescent',
+      post    => 1,       math_formats => ['pmml', 'mathtex'], invisibletimes => 0,
+      paths   => \@paths,
+      preload => ["[$latexml_sty_opts]latexml.sty", "ar5iv.sty"], defaultresources => 0,
       # modern documents are mostly unicode, which ones will we lose?
       # inputencoding=>'iso-8859-1',
-      timeout=>$timeout_limit,
-      log=>$log_filepath);
+      timeout => $timeout_limit,
+      log     => $log_filepath);
     $conversion_opts->check;
     my $converter = LaTeXML->get_converter($conversion_opts);
     # Actual latexml conversion happens here.
     $converter->prepare_session($conversion_opts);
     my $response = $converter->convert($source);
-    reset_external_timer($timer_pid); # Reset external timer
-    # This is a little silly -> the LaTeXML API does not (yet?) support direct local writing of Archives.
-    # In other words, the final Archive is contained into $response - a potentially huge variable.
-    # In any case, let's write that variable into the needed destination:
+    reset_external_timer($timer_pid);    # Reset external timer
+     # This is a little silly -> the LaTeXML API does not (yet?) support direct local writing of Archives.
+     # In other words, the final Archive is contained into $response - a potentially huge variable.
+     # In any case, let's write that variable into the needed destination:
     my $output_handle;
+
     if (!($response->{result} && open($output_handle, ">", $destination))) {
       my $fail_archive = Archive::Zip->new();
-      my $log_text = $response->{log} || "Fatal:unknown:empty_output\nStatus:conversion:3";
-      $fail_archive->addString("$log_text",$log_filepath);
-      exit ($fail_archive->writeToFileNamed($destination) == AZ_OK); }
+      my $log_text     = $response->{log} || "Fatal:unknown:empty_output\nStatus:conversion:3";
+      $fail_archive->addString("$log_text", $log_filepath);
+      exit($fail_archive->writeToFileNamed($destination) == AZ_OK); }
     else {
       binmode($output_handle);
       my $print_ok = print $output_handle $response->{result};
@@ -337,31 +340,31 @@ sub convert {
 sub with_external_guard {
   my ($timeout_limit, $memory_limit, $destination, $log_filepath) = @_;
   my $parent = $$;
-  my $pid = fork();
-  return $pid if $pid; # If parent finishes normally, it will kill $pid
+  my $pid    = fork();
+  return $pid if $pid;    # If parent finishes normally, it will kill $pid
   my $terminate_reason = "timeout";
   while ($timeout_limit > 0) {
-    sleep(min(10,$timeout_limit)); # Sleep for ten seconds
-    $timeout_limit -= 10; # update remaining timeout limit
+    sleep(min(10, $timeout_limit));    # Sleep for ten seconds
+    $timeout_limit -= 10;              # update remaining timeout limit
 
     # end prematurely if the memory_limit guard is violated
     if (memory_usage($parent) > $memory_limit) {
       $terminate_reason = "memory";
-      print STDERR "[".localtime()."] [$$] memory guard triggered, PID $parent exceeded $memory_limit bytes RSS\n";
+      print STDERR "[" . localtime() . "] [$$] memory guard triggered, PID $parent exceeded $memory_limit bytes RSS\n";
       last;
     }
   }
 
   # Core timeout handler:
   # If we haven't been killed, there is a system call timeout => kill the parent
-  print STDERR "[".localtime()."] [$$] killing $parent via external timeout\n";
+  print STDERR "[" . localtime() . "] [$$] killing $parent via external timeout\n";
   # Record the failure:
   my $fail_archive = Archive::Zip->new();
   my $log_text = "\nFatal:cortex:timeout External guard was triggered - timeout, killing main conversion worker\nStatus:conversion:3\n";
   if ($terminate_reason eq 'memory') {
     $log_text = "\nFatal:cortex:oom External guard was triggered - out of memory, killing main conversion worker\nStatus:conversion:3\n";
   }
-  $fail_archive->addString("$log_text",$log_filepath);
+  $fail_archive->addString("$log_text", $log_filepath);
   my $write_status = $fail_archive->writeToFileNamed($destination);
 
   # Terminate job.
@@ -369,7 +372,7 @@ sub with_external_guard {
   kill -9, getpgrp($parent);
 
   # And exit (if not killed already);
-  exit ($write_status == AZ_OK);
+  exit($write_status == AZ_OK);
 }
 
 sub reset_external_timer {
@@ -379,11 +382,11 @@ sub reset_external_timer {
 }
 
 sub memory_usage {
-  my $pid = int(shift || $$);
-  my $used = 0; # if not found
+  my $pid  = int(shift || $$);
+  my $used = 0;                  # if not found
   eval {
     my $t = Proc::ProcessTable->new();
-    foreach my $got ( @{$t->table} ) {
+    foreach my $got (@{ $t->table }) {
       next if int($got->pid) != $pid;
       $used = $got->rss;
       last;
