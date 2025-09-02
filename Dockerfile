@@ -6,18 +6,18 @@
 ## build via:
 ##
 ## export HOSTNAME=$(hostname); export HOSTTIME=$(date -Iminute);
-## docker build --build-arg HOSTNAME=$HOSTNAME --build-arg HOSTTIME=$HOSTTIME --tag latexml-plugin-cortex:2.1 .
+## docker build --build-arg HOSTNAME=$HOSTNAME --build-arg HOSTTIME=$HOSTTIME --tag latexml-plugin-cortex:3.0 .
 ##
 ## run example via:
 ##
 ##
 ## 1. threadripper 1950x
-## docker run --cpus="24.0" --memory="48g" --shm-size="32g" --hostname=$(hostname) latexml-plugin-cortex:2.1 latexml_harness 131.188.48.209
+## docker run --cpus="24.0" --memory="48g" --shm-size="32g" --hostname=$(hostname) latexml-plugin-cortex:3.0 latexml_harness 131.188.48.209
 ##
 ## 2. monster config style:
-## docker run --cpus="72.0" --memory="96g" --shm-size="64g" --hostname=$(hostname) latexml-plugin-cortex:2.1 latexml_harness 131.188.48.209
+## docker run --cpus="72.0" --memory="96g" --shm-size="64g" --hostname=$(hostname) latexml-plugin-cortex:3.0 latexml_harness 131.188.48.209
 
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 ENV TZ=America/New_York
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 ARG HOSTNAME
