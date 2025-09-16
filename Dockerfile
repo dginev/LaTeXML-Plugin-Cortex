@@ -66,7 +66,7 @@ RUN eval $(perl -I$HOME/perl5/lib -Mlocal::lib)
 RUN echo 'eval "$(perl -I$HOME/perl5/lib/perl5 -Mlocal::lib)"' >> ~/.bashrc
 
 # Collect the extended ar5iv-bindings files
-ENV AR5IV_BINDINGS_COMMIT=940ef38c88c813196972e9abd9acd265bf44d98e
+ENV AR5IV_BINDINGS_COMMIT=847b4835448d17065d612c04b52c4a373ec0fd15
 ENV AR5IV_BINDINGS_BASE=/opt/ar5iv-bindings
 ENV AR5IV_BINDINGS_PATH=$AR5IV_BINDINGS_BASE/bindings
 ENV AR5IV_SUPPORTED_ORIGINALS_PATH=$AR5IV_BINDINGS_BASE/supported_originals
