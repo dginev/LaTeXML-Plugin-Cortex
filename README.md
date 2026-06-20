@@ -10,11 +10,13 @@ Intended for use with the latest `master` branch of LaTeXML.
 Strategy: fetch the dependencies via the package managers, then install the bleeding versions from git.
 
 ```bash
-sudo apt-get install cpanminus libzmq3-dev &&
+sudo apt-get install cpanminus libzmq3-dev libcrypt-dev &&
 sudo apt-get build-dep latexml &&
 cpanm git@github.com:brucemiller/LaTeXML.git &&
 cpanm git@github.com:dginev/LaTeXML-Plugin-Cortex.git
 ```
+
+**Note:** `libcrypt-dev` is required on recent distributions (e.g. Ubuntu 24.04+, where `crypt` was split out of glibc into libxcrypt). Without it, `cpanm` builds of XS modules fail because Perl links every XS module with `-lcrypt`. The most confusing symptom is `ZMQ::LibZMQ3` aborting with `Can't link/include C library 'zmq.h', 'zmq'` — this is misleading, as `libzmq` is fine; the real error a line above is `cannot find -lcrypt`. The same missing package also breaks `Unix::Processors` with `fatal error: crypt.h: No such file or directory`. If `libcrypt-dev` is unavailable, try `libxcrypt-dev` instead.
 
 ## Update workflow for worker machines
 Adding a helper library to manage the local cpanm installs via `cpanm local::lib`, it becomes possible to use this `~/.bashrc` eval+aliases for a simple update+deploy of the harness:

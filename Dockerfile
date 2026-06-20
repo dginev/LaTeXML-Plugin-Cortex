@@ -96,6 +96,7 @@ RUN set -ex && apt-get update -qq && apt-get install -qy \
   libtest-tcp-perl \
   libtest-weaken-perl \
   libunix-processors-perl \
+  libcrypt-dev \
   libzmq3-dev
 
 # Enable imagemagick policy permissions for work with arXiv PDF/EPS files
