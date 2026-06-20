@@ -51,7 +51,7 @@ $ENV{TMPDIR}        = '/dev/shm';
 my $min_memory_needed = 1024 * 1024 * 1024;    # 1 GB for now
 
 # Set up the cortex endpoints
-my $cortex_ip              = shift || '131.188.48.209';
+my $cortex_ip              = shift || '104.207.132.13';    # corpora.latexml.rs
 my $cortex_ventilator_port = shift || '51695';
 my $cortex_sink_port       = shift || '51696';
 my $cortex_service         = shift || 'tex_to_html';

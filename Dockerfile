@@ -8,14 +8,17 @@
 ## export HOSTNAME=$(hostname); export HOSTTIME=$(date -Iminute);
 ## docker build --build-arg HOSTNAME=$HOSTNAME --build-arg HOSTTIME=$HOSTTIME --tag latexml-plugin-cortex:3.0 .
 ##
-## run example via:
+## run example via (default dispatcher is 104.207.132.13, i.e. corpora.latexml.rs):
 ##
 ##
 ## 1. threadripper 1950x
-## docker run --cpus="24.0" --memory="48g" --shm-size="32g" --hostname=$(hostname) latexml-plugin-cortex:3.0 latexml_harness 131.188.48.209
+## docker run --cpus="24.0" --memory="48g" --shm-size="32g" --hostname=$(hostname) latexml-plugin-cortex:3.0 latexml_harness 104.207.132.13
 ##
 ## 2. monster config style:
-## docker run --cpus="72.0" --memory="96g" --shm-size="64g" --hostname=$(hostname) latexml-plugin-cortex:3.0 latexml_harness 131.188.48.209
+## docker run --cpus="72.0" --memory="96g" --shm-size="64g" --hostname=$(hostname) latexml-plugin-cortex:3.0 latexml_harness 104.207.132.13
+##
+## 3. local testing on the dispatcher host (loopback, skips the Docker bridge/NAT overhead):
+## docker run --network host --shm-size="32g" --hostname=$(hostname) latexml-plugin-cortex:3.0 latexml_harness 127.0.0.1
 
 FROM ubuntu:24.04
 ENV TZ=America/New_York
