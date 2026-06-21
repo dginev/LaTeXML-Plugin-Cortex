@@ -45,9 +45,12 @@ $ENV{MAGICK_DISK_LIMIT}   = "6GiB"   unless defined $ENV{MAGICK_DISK_LIMIT};
 $ENV{MAGICK_MEMORY_LIMIT} = "4GiB" unless defined $ENV{MAGICK_MEMORY_LIMIT};
 $ENV{MAGICK_MAP_LIMIT}    = "4GiB"   unless defined $ENV{MAGICK_MAP_LIMIT};
 $ENV{MAGICK_TIME_LIMIT}   = "900"    unless defined $ENV{MAGICK_TIME_LIMIT};
-# No excuses - use the RAM disk
-$ENV{MAGICK_TMPDIR} = '/dev/shm';
-$ENV{TMPDIR}        = '/dev/shm';
+# Stage on a disk-backed scratch dir, NOT a RAM disk: under a large fleet the shared /dev/shm fills,
+# the mem_allowance guard below trips, inputs get truncated and the worker returns empty 0-byte
+# results (CorTeX KNOWN_ISSUES D-18). Honor an externally-set TMPDIR/MAGICK_TMPDIR (harness/container),
+# else default to the cortex scratch dir on a separate physical disk from the OS.
+$ENV{MAGICK_TMPDIR} ||= '/opt/cortex-scratch';
+$ENV{TMPDIR}        ||= '/opt/cortex-scratch';
 my $min_memory_needed = 1024 * 1024 * 1024;    # 1 GB for now
 
 # Set up the cortex endpoints
@@ -154,7 +157,7 @@ while (1) {
   $taskid = zmq_msg_data($taskid_msg);
   print STDERR "-- [$$] receiving taskid #$taskid.\n";
 
-  # Prepare a File for the input: we want a temp file, on a RAM disk (/dev/shm), without auto-remove
+  # Prepare a File for the input: a temp file in TMPDIR (disk-backed scratch, see top), no auto-remove
   my ($input_fh, $input_filepath) = tempfile($taskid . "_inXXXX", SUFFIX => ".zip", TMPDIR => 1, UNLINK => 0);
   my ($output_fh, $output_filepath) = tempfile($taskid . "_outXXXX", SUFFIX => ".zip", TMPDIR => 1, UNLINK => 0);
   close $output_fh;

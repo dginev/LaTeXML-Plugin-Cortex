@@ -11,14 +11,18 @@
 ## run example via (default dispatcher is 104.207.132.13, i.e. corpora.latexml.rs):
 ##
 ##
+## Scratch (TMPDIR) is disk-backed at /opt/cortex-scratch — bind-mount a host dir on a SEPARATE
+## physical disk from the OS (`-v /opt/cortex-scratch:/opt/cortex-scratch`). Do NOT stage on a
+## ramdisk: /dev/shm exhaustion under a large fleet truncates inputs → empty results (CorTeX D-18).
+##
 ## 1. threadripper 1950x
-## docker run --cpus="24.0" --memory="48g" --shm-size="32g" --hostname=$(hostname) latexml-plugin-cortex:3.0 latexml_harness 104.207.132.13
+## docker run --cpus="24.0" --memory="48g" -v /opt/cortex-scratch:/opt/cortex-scratch --hostname=$(hostname) latexml-plugin-cortex:3.0 latexml_harness 104.207.132.13
 ##
 ## 2. monster config style:
-## docker run --cpus="72.0" --memory="96g" --shm-size="64g" --hostname=$(hostname) latexml-plugin-cortex:3.0 latexml_harness 104.207.132.13
+## docker run --cpus="72.0" --memory="96g" -v /opt/cortex-scratch:/opt/cortex-scratch --hostname=$(hostname) latexml-plugin-cortex:3.0 latexml_harness 104.207.132.13
 ##
 ## 3. local testing on the dispatcher host (loopback, skips the Docker bridge/NAT overhead):
-## docker run --network host --shm-size="32g" --hostname=$(hostname) latexml-plugin-cortex:3.0 latexml_harness 127.0.0.1
+## docker run --network host -v /opt/cortex-scratch:/opt/cortex-scratch --hostname=$(hostname) latexml-plugin-cortex:3.0 latexml_harness 127.0.0.1
 
 FROM ubuntu:24.04
 ENV TZ=America/New_York
@@ -121,5 +125,20 @@ RUN mkdir -p $WORKING_DIR
 WORKDIR $WORKING_DIR
 ENV CORTEX_WORKER_COMMIT=c621d439a8dd47b7a96d46c49a4c9426a16d23cf
 RUN cpanm --verbose https://github.com/dginev/LaTeXML-Plugin-Cortex/tarball/$CORTEX_WORKER_COMMIT
+
+# Allow a `CORTEX_WORKERS` env override of the harness fleet size — latexml_harness has no flag for
+# it today (it derives `max_online − reservation`), so pin it here when a run needs a specific count,
+# e.g. to match the latexml-oxide cortex-worker for a controlled comparison. Unset → unchanged default.
+RUN sed -i '/1 free when 2-4 available/a $Cache->{processor_multiplier} = $ENV{CORTEX_WORKERS} if $ENV{CORTEX_WORKERS};' /usr/local/bin/latexml_harness
+
+# Stage scratch on a disk-backed dir on a SEPARATE physical disk from the OS, NOT the RAM disk:
+# under a large fleet the shared /dev/shm fills and the worker truncates inputs → empty 0-byte
+# results (CorTeX KNOWN_ISSUES D-18). The pinned worker hardcodes TMPDIR=/dev/shm, so patch the
+# installed copy (mirrors the CORTEX_WORKERS override above); bind-mount the host dir at run time
+# with `-v /opt/cortex-scratch:/opt/cortex-scratch`.
+RUN mkdir -p /opt/cortex-scratch \
+ && sed -i 's|/dev/shm|/opt/cortex-scratch|g' /usr/local/bin/latexml_worker
+ENV TMPDIR=/opt/cortex-scratch
+ENV MAGICK_TMPDIR=/opt/cortex-scratch
 
 RUN echo "Build started at $DOCKER_BUILD_TIME, ended at $(date -Iminute)"
